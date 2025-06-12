@@ -8,15 +8,24 @@ import MetricsPreview from "./modules/MetricsPreview";
 import HRDocumentsPreview from "./modules/HRDocumentsPreview";
 import Navbar from "./components/Navbar";
 
+const colors = {
+  richBlack: "#0d1b2a",
+  oxfordBlue: "#1b263b",
+  yinmnBlue: "#415a77",
+  silverLakeBlue: "#778da9a",
+  platinum: "#e0e1dd",
+};
+
 export default function ClientDashboardHome({ user, onLogout }) {
   const navigate = useNavigate();
   const company = user?.company;
 
-  // Styles
+  const [hoveredIndex, setHoveredIndex] = React.useState(null);
+
   const pageStyle = {
     minHeight: "100vh",
-    background: "linear-gradient(135deg, #1e3c72, #2a5298)", // deep blue gradient
-    color: "#fff",
+    backgroundColor: colors.platinum,
+    color: colors.richBlack,
     fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     display: "flex",
     flexDirection: "column",
@@ -24,11 +33,11 @@ export default function ClientDashboardHome({ user, onLogout }) {
 
   const headerStyle = {
     padding: "2rem 3rem",
-    borderBottom: "2px solid rgba(255,255,255,0.15)",
+    borderBottom: `2px solid ${colors.silverLakeBlue}`,
     fontWeight: "700",
     fontSize: "2.4rem",
     letterSpacing: "1.2px",
-    textShadow: "0 2px 4px rgba(0,0,0,0.35)",
+    color: colors.oxfordBlue,
   };
 
   const mainStyle = {
@@ -41,29 +50,25 @@ export default function ClientDashboardHome({ user, onLogout }) {
   };
 
   const cardStyle = {
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    backgroundColor: "rgba(27, 38, 59, 0.05)", // oxfordBlue with low opacity
     borderRadius: "16px",
     padding: "1.5rem 1.5rem 2rem",
     width: "320px",
     minHeight: "240px",
     cursor: "pointer",
-    boxShadow:
-      "0 8px 20px rgba(0,0,0,0.3), inset 0 0 60px rgba(255, 255, 255, 0.05)",
+    boxShadow: `0 8px 20px rgba(27, 38, 59, 0.12), inset 0 0 60px rgba(27, 38, 59, 0.03)`,
     display: "flex",
     flexDirection: "column",
-    transition: "transform 0.3s ease, box-shadow 0.3s ease",
-    color: "#fff",
+    transition: "transform 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease",
+    color: colors.richBlack,
+    border: `1px solid ${colors.silverLakeBlue}`,
   };
 
   const cardHoverStyle = {
-    transform: "translateY(-8px)",
-    boxShadow:
-      "0 20px 40px rgba(0,0,0,0.6), inset 0 0 80px rgba(255, 255, 255, 0.1)",
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    transform: "translateY(-6px)",
+    boxShadow: `0 20px 40px rgba(27, 38, 59, 0.2), inset 0 0 80px rgba(27, 38, 59, 0.05)`,
+    backgroundColor: "rgba(27, 38, 59, 0.1)",
   };
-
-  // State to track hovered card for styling
-  const [hoveredIndex, setHoveredIndex] = React.useState(null);
 
   const cards = [
     { id: "projects", comp: <ProjectsPreview company={company} />, path: "/client/projects" },
@@ -78,15 +83,16 @@ export default function ClientDashboardHome({ user, onLogout }) {
       <Navbar onLogout={() => navigate("/login")} />
 
       <header style={headerStyle}>
-        <h1 style={{
-  fontSize: "2.5rem",
-  fontWeight: "800",
-  marginBottom: "1rem",
-  color: "#ffffff",
-}}>
-  {user?.company || "Your Company"}
-</h1>
-
+        <h1
+          style={{
+            fontSize: "2.5rem",
+            fontWeight: "800",
+            marginBottom: "1rem",
+            color: colors.oxfordBlue,
+          }}
+        >
+          {company || "Your Company"}
+        </h1>
       </header>
 
       <main style={mainStyle}>

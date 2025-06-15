@@ -3,11 +3,11 @@ import { useNavigate } from "react-router-dom";
 
 // Define your color palette
 const colors = {
-  richBlack: "#0d1b2a",
+  richBlack: "#343434",
   oxfordBlue: "#1b263b",
   yinmnBlue: "#415a77",
   silverLakeBlue: "#778da9a",
-  platinum: "#e0e1dd",
+  platinum: "#d9d9d9",
   logoutPink: "#e94e77",
 };
 
@@ -53,9 +53,9 @@ export default function Navbar({ onLogout }) {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          padding: "1rem 2rem",
-          borderBottom: `2px solid ${colors.yinmnBlue}`,
-          backgroundColor: colors.yinmnBlue,  // solid background, no gradient
+          padding: "0.5rem 3rem",
+          borderBottom: `2px solid ${colors.richBlack}`,
+          backgroundColor: colors.richBlack,  // solid background, no gradient
           fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
           color: colors.platinum,
           position: "relative",
@@ -63,33 +63,36 @@ export default function Navbar({ onLogout }) {
           zIndex: 1100,
         }}
       >
-        {/* Logo + Text */}
-        <div
-          style={{ display: "flex", alignItems: "center", cursor: "pointer" }}
-          onClick={() => navigate("/client")}
-          aria-label="Go to Home"
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") navigate("/client");
-          }}
-        >
-          <img
-            src="/favicon-96x96.png"
-            alt="BuildOps Logo"
-            style={{ height: "40px", width: "40px", marginRight: "10px" }}
-          />
-          <span
-            style={{
-              fontSize: "1.3rem",
-              fontWeight: "700",
-              color: colors.platinum,
-              userSelect: "none",
-            }}
-          >
-            BuildOps
-          </span>
-        </div>
+       {/* Prominent Logo Only */}
+<div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    padding: 0,
+    margin: 0,
+    lineHeight: 0,
+  }}
+  onClick={() => navigate("/client")}
+  aria-label="Go to Home"
+  role="button"
+  tabIndex={0}
+  onKeyDown={(e) => {
+    if (e.key === "Enter" || e.key === " ") navigate("/client");
+  }}
+>
+  <img
+    src="/zoomedlogo.png"
+    alt="VexOp+ Logo"
+    style={{
+      height: "100px",
+      width: "auto",
+      objectFit: "contain",
+      display: "block",
+    }}
+  />
+</div>
 
         {/* Buttons container with flex */}
         <div

@@ -9,11 +9,11 @@ import HRDocumentsPreview from "./modules/HRDocumentsPreview";
 import Navbar from "./components/Navbar";
 
 const colors = {
-  richBlack: "#0d1b2a",
+  richBlack: "#343434",
   oxfordBlue: "#1b263b",
   yinmnBlue: "#415a77",
   silverLakeBlue: "#778da9a",
-  platinum: "#e0e1dd",
+  platinum: "#d9d9d9",
 };
 
 export default function ClientDashboardHome({ user, onLogout }) {

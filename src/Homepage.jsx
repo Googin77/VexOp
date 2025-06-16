@@ -208,7 +208,7 @@ const Homepage = () => {
         fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
       }}
     >
-         <header className="w-full py-0 px-0" style={{ backgroundColor: colors.richBlack }}>
+         <header className="w-full py-0 px-4" style={{ backgroundColor: colors.richBlack }}>
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           {/* Logo with Adjusted Styling */}
           <div

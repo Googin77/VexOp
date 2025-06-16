@@ -8,6 +8,7 @@ import { auth, db } from "./firebase";
 import Login from "./Login";
 import AdminDashboard from "./AdminDashboard";
 import ClientDashboardHome from "./ClientDashboardHome";
+import Homepage from "./Homepage"; // Import the new Homepage component
 
 // Full modules
 import ProjectsModule from "./modules/ProjectsModule";
@@ -69,6 +70,7 @@ export default function App() {
 
   return (
     <Routes>
+      <Route path="/" element={<Homepage />} /> {/* Homepage route */}
       <Route path="/login" element={<Login />} />
 
       {/* Admin dashboard */}
@@ -149,12 +151,6 @@ export default function App() {
             <Navigate to="/login" replace />
           )
         }
-      />
-
-      {/* Root redirect */}
-      <Route
-        path="/"
-        element={user ? <Navigate to={`/${user.role}`} replace /> : <Navigate to="/login" replace />}
       />
     </Routes>
   );

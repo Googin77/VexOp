@@ -43,8 +43,8 @@ const ContactForm = ({ onClose }) => {
     }
 
     const templateParams = {
-      From_name: name,
-      From_email: email,
+      from_name: name,
+      from_email: email,
       message: message,
       company: company,
     };
@@ -154,15 +154,24 @@ const ContactForm = ({ onClose }) => {
               required
             />
           </div>
-                  <ReCAPTCHA
-        sitekey="6Ld3dWIrAAAAABBYrwcC3D25whZQb2WuH1qz8v4u"
-        onChange={handleCaptchaChange}
-      />
-            {!captcha && submissionResult && !submissionResult.success && (
-        <div className="text-red-500 mt-2">Please complete the reCAPTCHA.</div>
-      )}
+    <div className="flex flex-col items-center mt-4">
+            <ReCAPTCHA
+              sitekey="6Ld3dWIrAAAAABBYrwcC3D25whZQb2WuH1qz8v4u"
+              onChange={handleCaptchaChange}
+            />
+        {!captcha && submissionResult && !submissionResult.success && (
+          <div className="text-red-500 mt-2">Please complete the reCAPTCHA.</div>
+        )}
+        </div>
 
-          <div className="flex justify-between">
+          <div className="flex justify-between mt-6">
+          <button
+              className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+              type="button"
+              onClick={onClose}
+            >
+              Cancel
+            </button>
             <button
               className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
               type="submit"
@@ -170,13 +179,7 @@ const ContactForm = ({ onClose }) => {
             >
               {isSubmitting ? "Submitting..." : "Submit"}
             </button>
-            <button
-              className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-              type="button"
-              onClick={onClose}
-            >
-              Cancel
-            </button>
+
           </div>
         </form>
       </div>

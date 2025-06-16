@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import emailjs from '@emailjs/browser';
+import ReCAPTCHA from "react-google-recaptcha";
 
 const colors = {
   richBlack: "#343434",
@@ -18,17 +19,28 @@ const ContactForm = ({ onClose }) => {
   const [company, setCompany] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionResult, setSubmissionResult] = useState(null);
-    const formRef = useRef(null);
-
+  const [captcha, setCaptcha] = useState(null);
 
   const serviceId = 'service_vug8zg7';
   const templateId = 'template_fzqn41o';
   const publicKey = 'u6u4zgH2v5fV8GUJO';
+  const formRef = useRef(null);
 
-    const handleSubmit = (e) => {
+  const handleCaptchaChange = (value) => {
+    setCaptcha(value);
+  };
+
+
+  const handleSubmit = (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmissionResult(null);
+
+      if (!captcha) {
+      setSubmissionResult({ success: false, message: 'Please complete the reCAPTCHA.' });
+      setIsSubmitting(false);
+      return;
+    }
 
     const templateParams = {
       from_name: name,
@@ -46,6 +58,7 @@ const ContactForm = ({ onClose }) => {
         setMessage('');
         setCompany('');
         setIsSubmitting(false); // Reset the submission state
+        setCaptcha(null);
       })
       .catch((error) => {
         console.error(error);
@@ -88,7 +101,7 @@ const ContactForm = ({ onClose }) => {
               id="name"
               type="text"
               placeholder="Your Name"
-              name="from_name"
+              name="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
@@ -104,7 +117,7 @@ const ContactForm = ({ onClose }) => {
               id="email"
               type="email"
               placeholder="Your Email"
-              name="from_email"
+              name="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -141,6 +154,13 @@ const ContactForm = ({ onClose }) => {
               required
             />
           </div>
+                  <ReCAPTCHA
+        sitekey="6Ld3dWIrAAAAABBYrwcC3D25whZQb2WuH1qz8v4u"
+        onChange={handleCaptchaChange}
+      />
+            {!captcha && submissionResult && !submissionResult.success && (
+        <div className="text-red-500 mt-2">Please complete the reCAPTCHA.</div>
+      )}
 
           <div className="flex justify-between">
             <button

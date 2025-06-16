@@ -2,7 +2,16 @@ import React, { useEffect, useState } from "react";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { useNavigate } from "react-router-dom";
-import Navbar from "../components/Navbar"; // adjust path if needed
+import Navbar from "../components/Navbar";
+import Calculator from "../calculator";
+
+const colors = {
+  richBlack: "#343434",
+  oxfordBlue: "#1b263b",
+  yinmnBlue: "#415a77",
+  silverLakeBlue: "#778da9a",
+  platinum: "#d9d9d9",
+};
 
 export default function HRDocumentsModule({ company }) {
   const [hrDocs, setHrDocs] = useState([]);
@@ -37,25 +46,38 @@ export default function HRDocumentsModule({ company }) {
   if (loading) return <p>Loading HR documents for {company}...</p>;
 
   return (
-    <div>
+    <div
+      className="min-h-screen bg-gradient-to-br from-[#0f172a] to-[#1e293b] text-white"
+    >
       <Navbar onLogout={() => navigate("/login")} />
-      <button onClick={() => navigate("/client")} style={{ marginBottom: "1rem" }}>
-        ← Back to Dashboard
-      </button>
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-4xl font-bold">HR Documents</h1>
+          <button
+            onClick={() => navigate("/client")}
+            className="text-sm font-medium px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md transition"
+          >
+            ← Back to Homepage
+          </button>
+        </div>
 
-      <h2>HR Documents</h2>
-      {hrDocs.length === 0 ? (
-        <p>No HR documents found for this client.</p>
-      ) : (
-        <ul>
-          {hrDocs.map((doc) => (
-            <li key={doc.id}>
-              {/* Customize display here */}
-              {/* Example: <strong>{doc.title}</strong> — {doc.status} */}
-            </li>
-          ))}
-        </ul>
-      )}
+        {/* HR Documents */}
+        <h2>HR Documents</h2>
+        {hrDocs.length === 0 ? (
+          <p>No HR documents found for this client.</p>
+        ) : (
+          <ul>
+            {hrDocs.map((doc) => (
+              <li key={doc.id}>
+                Document Title: {doc.title} - Status: {doc.status}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* Calculator Component */}
+        <Calculator colors={colors} />
+      </div>
     </div>
   );
 }

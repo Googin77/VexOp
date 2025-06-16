@@ -208,19 +208,22 @@ const Homepage = () => {
         fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
       }}
     >
-      {/* Top Navbar Container */}
-      <header className="w-full py-4 px-6" style={{ backgroundColor: colors.richBlack }}>
+         <header className="w-full py-0 px-0" style={{ backgroundColor: colors.richBlack }}>
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          {/* Logo */}
-          <img
-            src="/zoomedlogo.png"
-            alt="VexOp+ Logo"
-            style={{
-              height: "60px",
-              width: "auto",
-              objectFit: "contain",
-            }}
-          />
+          {/* Logo with Adjusted Styling */}
+          <div
+            
+          >
+            <img
+              src="/zoomedlogo.png"
+              alt="VexOp+ Logo"
+              style={{
+                height: "120px",
+                width: "auto",
+                objectFit: "contain",
+              }}
+            />
+          </div>
 
           {/* Sign In Button (Right) */}
           <button
@@ -248,7 +251,7 @@ const Homepage = () => {
           className="text-gray-700 mb-8 text-center max-w-3xl px-4"
           style={{ fontSize: "1.2rem", lineHeight: "1.6" }}
         >
-          VexOp is the easiest way for building, trade and construction companies to stay organised, grow profitability, reduce waste, and deliver greater client satisfaction.
+          VexOp+ is the easiest way for building, trade and construction companies to stay organised, grow profitability, reduce waste, and deliver greater client satisfaction.
         </p>
         {/* Register Interest Button (Center) */}
         <button
@@ -272,8 +275,7 @@ const Homepage = () => {
       <div className="flex-grow p-8" style={{ backgroundColor: "white" }}>
         {/* Your Content Here */}
         <p className="text-gray-700">
-          Scrollable Content Area. Add additional text, images, or components here to showcase
-          your product features, testimonials, and other marketing information.
+          Additional information to come...
         </p>
       </div>
           {showContactForm && <ContactForm onClose={handleContactFormClose} />}

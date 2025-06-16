@@ -43,8 +43,8 @@ const ContactForm = ({ onClose }) => {
     }
 
     const templateParams = {
-      from_name: name,
-      from_email: email,
+      From_name: name,
+      From_email: email,
       message: message,
       company: company,
     };

@@ -3,7 +3,7 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../firebase";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
-import Calculator from "../calculator";
+import Calculator from "../Calculator";
 
 const colors = {
   richBlack: "#343434",

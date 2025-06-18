@@ -1,4 +1,5 @@
-import React from "react";
+// ClientDashboardHome Component
+import React, { useContext } from "react"; // Import useContext
 import { useNavigate } from "react-router-dom";
 
 import ProjectsPreview from "./modules/ProjectsPreview";
@@ -8,6 +9,8 @@ import MetricsPreview from "./modules/MetricsPreview";
 import HRDocumentsPreview from "./modules/HRDocumentsPreview";
 import Navbar from "./components/Navbar";
 
+import { AuthContext } from "./AuthContext"; // Import the AuthContext
+
 const colors = {
   richBlack: "#343434",
   oxfordBlue: "#1b263b",
@@ -16,9 +19,11 @@ const colors = {
   platinum: "#d9d9d9",
 };
 
-export default function ClientDashboardHome({ user, onLogout }) {
+export default function ClientDashboardHome() {
+  // Remove user prop
   const navigate = useNavigate();
-  const company = user?.company;
+  const { currentUser } = useContext(AuthContext); // Use the AuthContext to get company
+  const company = currentUser?.company;
 
   const [hoveredIndex, setHoveredIndex] = React.useState(null);
 
@@ -54,12 +59,12 @@ export default function ClientDashboardHome({ user, onLogout }) {
     borderRadius: "16px",
     padding: "1.5rem 1.5rem 2rem",
     width: "320px",
-    minHeight: "240px",
+    height: "320px",
     cursor: "pointer",
     boxShadow: `0 8px 20px rgba(27, 38, 59, 0.12), inset 0 0 60px rgba(27, 38, 59, 0.03)`,
     display: "flex",
     flexDirection: "column",
-    transition: "transform 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease",
+    transition: "transform 0.3s ease, boxShadow 0.3s ease, background-color 0.3s ease",
     color: colors.richBlack,
     border: `1px solid ${colors.silverLakeBlue}`,
   };
@@ -71,11 +76,28 @@ export default function ClientDashboardHome({ user, onLogout }) {
   };
 
   const cards = [
-    { id: "projects", comp: <ProjectsPreview company={company} />, path: "/client/projects" },
-    { id: "invoices", comp: <InvoicesPreview company={company} />, path: "/client/invoices" },
+    {
+      id: "projects",
+      comp: <ProjectsPreview company={company} />,
+      path: "/client/projects",
+    },
+    {
+      id: "quotecalculator",
+      comp: <HRDocumentsPreview company={company} />,
+      path: "/client/quotecalculator",
+      
+    },
     { id: "crm", comp: <CRMPreview company={company} />, path: "/client/crm" },
-    { id: "metrics", comp: <MetricsPreview company={company} />, path: "/client/metrics" },
-    { id: "hrdocuments", comp: <HRDocumentsPreview company={company} />, path: "/client/hrdocuments" },
+    {
+      id: "metrics",
+      comp: <MetricsPreview company={company} />,
+      path: "/client/metrics",
+    },
+    {
+      id: "invoices",
+      comp: <InvoicesPreview company={company} />,
+      path: "/client/invoices",
+    }, // Pass user prop
   ];
 
   return (

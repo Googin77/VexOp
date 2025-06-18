@@ -68,7 +68,15 @@ function QuotingCalculator() {
 
     const productTypes = [
         { value: "kwilaint", label: "Kwila Internal" },
-        { value: "another_type", label: "Another Product" },
+        { value: "kwilaext", label: "Kwila External" },
+        { value: "hardext", label: "Hardwood External" },
+        { value: "durian", label: "Durian" },
+        { value: "amoak", label: "American Oak" },
+        { value: "brushbox", label: "Brushbox" },
+        { value: "gum", label: "SP-GUM B-BUTT" },
+        { value: "tas", label: "Tas Oak" },
+        { value: "pine", label: "Clear Pine" },
+        { value: "carpet", label: "Carpet" },
     ];
 
     useEffect(() => {
@@ -99,20 +107,6 @@ function QuotingCalculator() {
 
         fetchPrices();
     }, [productType]);
-
-   useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (menuOpen && menuRef.current && !menuRef.current.contains(event.target)) {
-                setMenuOpen(null);
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [menuOpen]);
 
     useEffect(() => {
         const fetchSavedQuotes = async () => {
@@ -193,47 +187,59 @@ function QuotingCalculator() {
     const total = subtotal + gst;
 
     const handleSubmit = async () => {
-        try {
-            const stairTotal = calculateSectionTotal("stair");
-            const balustradeTotal = calculateSectionTotal("balustrade");
-            const extrasTotal = calculateSectionTotal("extras");
+  try {
+    const stairTotal = calculateSectionTotal("stair");
+    const balustradeTotal = calculateSectionTotal("balustrade");
+    const extrasTotal = calculateSectionTotal("extras");
 
-            const quoteData = {
-                company: currentUser?.company,
-                productType: productType,
-                stairTotal: stairTotal,
-                balustradeTotal: balustradeTotal,
-                extrasTotal: extrasTotal,
-                quoteTitle: quoteTitle,
-                total: total,
-                createdAt: new Date(),
-                quantities: quantities,
-                extraCostsQuantity: extraCostsQuantity,
-                extraCostsPrice: extraCostsPrice,
-            };
-
-            if (isEditing && quoteIdToEdit) {
-                const quoteDocRef = doc(db, "quotes", quoteIdToEdit);
-                await setDoc(quoteDocRef, quoteData, { merge: true });
-                console.log("Quote updated with ID: ", quoteIdToEdit);
-            } else {
-                await addDoc(collection(db, "quotes"), quoteData);
-                console.log("New quote saved!");
-            }
-
-            setIsEditing(false);
-            setQuoteIdToEdit(null);
-            setQuoteTitle("");
-            setProductType("");
-            setQuantities({});
-            setExtraCostsQuantity("");
-            setExtraCostsPrice("");
-            setQuoteBeingEdited(null);
-
-        } catch (error) {
-            console.error("Error saving/updating document: ", error);
-        }
+    const quoteData = {
+      company: currentUser?.company,
+      productType: productType,
+      stairTotal,
+      balustradeTotal,
+      extrasTotal,
+      quoteTitle,
+      total,
+      createdAt: new Date(),
+      quantities,
+      extraCostsQuantity,
+      extraCostsPrice,
     };
+
+    if (isEditing && quoteIdToEdit) {
+      // Update in Firestore
+      const quoteDocRef = doc(db, "quotes", quoteIdToEdit);
+      await setDoc(quoteDocRef, quoteData, { merge: true });
+      
+      // Update in local state
+      setSavedQuotes(prevQuotes =>
+        prevQuotes.map(q => (q.id === quoteIdToEdit ? { id: q.id, ...quoteData } : q))
+      );
+    } else {
+      // Save new in Firestore
+      const docRef = await addDoc(collection(db, "quotes"), quoteData);
+      
+      // Add to local state for immediate update
+      setSavedQuotes(prev => [
+        { id: docRef.id, ...quoteData },
+        ...prev
+      ]);
+    }
+
+    // Reset form
+    setIsEditing(false);
+    setQuoteIdToEdit(null);
+    setQuoteTitle("");
+    setProductType("");
+    setQuantities({});
+    setExtraCostsQuantity("");
+    setExtraCostsPrice("");
+    setQuoteBeingEdited(null);
+  } catch (error) {
+    console.error("Error saving/updating document: ", error);
+  }
+};
+
 
     const handleDeleteQuote = async (quoteId) => {
         try {
@@ -458,7 +464,17 @@ function QuotingCalculator() {
         <div style={pageStyle}>
             <Navbar onLogout={() => navigate("/login")} />
 
+
             <div style={containerStyle}>
+                <div className="flex justify-between items-center mb-6">
+          <h1 className="text-4xl font-bold">Quote Calculator</h1>
+          <button
+            onClick={() => navigate("/client")}
+            style={buttonStyle}
+          >
+            ← Back to Homepage
+          </button>
+        </div>
                 <h1 style={headerStyle}>Quoting Calculator</h1>
                 <label htmlFor="quoteTitle" style={{ display: "block", marginBottom: "0.5rem", color: colors.oxfordBlue, fontWeight: "500", fontSize: "0.9rem", }}>
                     Quote Title:
@@ -598,7 +614,9 @@ function QuotingCalculator() {
                                 <tbody>
                                     {savedQuotes.map(quote => (
                                         <tr key={quote.id}>
-                                            <td style={savedQuotesTdStyle}>{quote.createdAt?.toDate().toLocaleDateString()}</td>
+                                            <td style={savedQuotesTdStyle}>
+  {quote.createdAt?.toDate ? quote.createdAt.toDate().toLocaleDateString() : new Date(quote.createdAt).toLocaleDateString()}
+</td>
                                             <td style={savedQuotesTdStyle}>{quote.quoteTitle}</td>
                                             <td style={savedQuotesTdStyle}>{productTypes.find(pt => pt.value === quote.productType)?.label || "Unknown"}</td>
                                             <td style={savedQuotesTdStyle}>${quote.stairTotal?.toFixed(2) || 0}</td>
@@ -607,38 +625,35 @@ function QuotingCalculator() {
                                             <td style={savedQuotesTdStyle}>${quote.total?.toFixed(2) || 0}</td>
                                             <td style={savedQuotesTdStyle}>
                                                 <div style={kebabMenuStyle} ref={menuRef}>
-    <button
-        style={kebabButton}
-        onClick={(e) => {
-            e.stopPropagation(); // Prevent the div's onClick from firing
-            toggleMenu(quote.id);
-        }}
-    >
-        <FontAwesomeIcon icon={faEllipsisV} />
-    </button>
-    {menuOpen === quote.id && (
-        <div style={menuContentStyle}>
-            <button
-                style={menuItemStyle}
-                onClick={() => {
-                    handleEditQuote(quote);
-                    toggleMenu(null);
-                }}
-            >
-                Edit
-            </button>
-            <button
-                style={menuItemStyle}
-                onClick={() => {
-                    handleDeleteQuote(quote.id);
-                    toggleMenu(null);
-                }}
-            >
-                Delete
-            </button>
-        </div>
-    )}
-</div>
+                                                    <button
+                                                        style={kebabButton}
+                                                        onClick={() => toggleMenu(quote.id)}
+                                                    >
+                                                        <FontAwesomeIcon icon={faEllipsisV} />
+                                                    </button>
+                                                    {menuOpen === quote.id && (
+                                                        <div style={menuContentStyle}>
+                                                            <button
+                                                                style={menuItemStyle}
+                                                                onClick={() => {
+                                                                    handleEditQuote(quote);
+                                                                    toggleMenu(null);
+                                                                }}
+                                                            >
+                                                                Edit
+                                                            </button>
+                                                            <button
+                                                                style={menuItemStyle}
+                                                                onClick={() => {
+                                                                    handleDeleteQuote(quote.id);
+                                                                    toggleMenu(null);
+                                                                }}
+                                                            >
+                                                                Delete
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}

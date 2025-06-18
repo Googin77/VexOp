@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from "react";
+// App.jsx
+import React, { useState, useEffect, useContext } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 
@@ -8,20 +10,20 @@ import { auth, db } from "./firebase";
 import Login from "./Login";
 import AdminDashboard from "./AdminDashboard";
 import ClientDashboardHome from "./ClientDashboardHome";
-import Homepage from "./Homepage"; // Import the new Homepage component
+import Homepage from "./Homepage";
 
-// Full modules
 import ProjectsModule from "./modules/ProjectsModule";
 import InvoicesModule from "./modules/InvoicesModule";
 import CRMModule from "./modules/CRMModule";
 import MetricsModule from "./modules/MetricsModule";
-import HRDocumentsModule from "./modules/HRDocumentsModule";
+import QuoteCalculatorModule from "./modules/QuoteCalculatorModule";
+
+import { AuthContext } from "./AuthContext";
 
 export default function App() {
-  const [user, setUser] = useState(null);
+  const { currentUser, setCurrentUser } = useContext(AuthContext);
   const [loading, setLoading] = useState(true);
 
-  // Listen for Firebase login state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
@@ -36,7 +38,7 @@ export default function App() {
             const userData = userDocSnap.data();
             const company = userData.company;
 
-            setUser({
+            setCurrentUser({ 
               uid: firebaseUser.uid,
               email: firebaseUser.email,
               role,
@@ -44,40 +46,40 @@ export default function App() {
             });
           } else {
             console.warn("No matching user document found in Firestore.");
-            setUser(null);
+            setCurrentUser(null);
           }
         } catch (error) {
           console.error("Error fetching user metadata:", error);
-          setUser(null);
+          setCurrentUser(null);
         }
       } else {
-        setUser(null);
+        setCurrentUser(null);
       }
-
       setLoading(false);
     });
-
     return () => unsubscribe();
-  }, []);
+  }, [setCurrentUser]);
 
   const handleLogout = () => {
     signOut(auth)
-      .then(() => setUser(null))
+      .then(() => setCurrentUser(null))
       .catch((error) => console.error("Logout error:", error));
   };
 
   if (loading) return <div>Loading...</div>;
 
   return (
+    // Your routes, no need for extra wrapping here
     <Routes>
-      <Route path="/" element={<Homepage />} /> {/* Homepage route */}
+      <Route path="/" element={<Homepage />} />
+
       <Route path="/login" element={<Login />} />
 
-      {/* Admin dashboard */}
+      {/* Admin Route */}
       <Route
         path="/admin"
         element={
-          user?.role === "admin" ? (
+          currentUser?.role === "admin" ? (
             <AdminDashboard onLogout={handleLogout} />
           ) : (
             <Navigate to="/login" replace />
@@ -85,68 +87,64 @@ export default function App() {
         }
       />
 
-      {/* Client dashboard home */}
+      {/* Client Routes */}
       <Route
         path="/client"
         element={
-          user?.role === "client" ? (
-            <ClientDashboardHome user={user} onLogout={handleLogout} />
+          currentUser?.role === "client" ? (
+            <ClientDashboardHome user={currentUser} onLogout={handleLogout} />
           ) : (
             <Navigate to="/login" replace />
           )
         }
       />
-
-      {/* Full module views */}
       <Route
         path="/client/projects"
         element={
-          user?.role === "client" ? (
-            <ProjectsModule company={user.company} />
+          currentUser?.role === "client" ? (
+            <ProjectsModule company={currentUser.company} />
           ) : (
             <Navigate to="/login" replace />
           )
         }
       />
-
       <Route
         path="/client/invoices"
         element={
-          user?.role === "client" ? (
-            <InvoicesModule company={user.company} />
+          currentUser?.role === "client" ? (
+            <InvoicesModule company={currentUser.company} />
           ) : (
             <Navigate to="/login" replace />
           )
         }
       />
-
       <Route
         path="/client/crm"
         element={
-          user?.role === "client" ? (
-            <CRMModule company={user.company} />
+          currentUser?.role === "client" ? (
+            <CRMModule company={currentUser.company} />
           ) : (
             <Navigate to="/login" replace />
           )
         }
       />
-
       <Route
         path="/client/metrics"
         element={
-          user?.role === "client" ? (
-            <MetricsModule company={user.company} />
+          currentUser?.role === "client" ? (
+            <MetricsModule company={currentUser.company} />
           ) : (
             <Navigate to="/login" replace />
           )
         }
       />
 
+      {/* Quote Calculator page */}
       <Route
-        path="/client/hrdocuments"
+        path="/client/quotecalculator"
         element={
-          user?.role === "client" ? (
-            <HRDocumentsModule company={user.company} />
+          currentUser?.role === "client" ? (
+            <QuoteCalculatorModule company={currentUser.company} />
           ) : (
             <Navigate to="/login" replace />
           )

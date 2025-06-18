@@ -32,12 +32,12 @@ export default function Navbar({ onLogout }) {
   }, [drawerOpen]);
 
   const menuItems = [
-    { label: "🏠 Home", path: "/client" },
-    { label: "📁 Projects", path: "/client/projects" },
-    { label: "🧾 Invoices", path: "/client/invoices" },
-    { label: "👥 HR Docs", path: "/client/hrdocuments" },
-    { label: "📇 CRM", path: "/client/crm" },
-    { label: "📊 Metrics", path: "/client/metrics" },
+    { label: "Home", path: "/client" },
+    { label: "Projects", path: "/client/projects" },
+    { label: "Quote Calculator", path: "/client/quotecalculator" },
+    { label: "Invoices", path: "/client/invoices" },
+    { label: "CRM", path: "/client/crm" },
+    { label: "Metrics", path: "/client/metrics" },
   ];
 
   const handleNavigate = (path) => {
@@ -208,7 +208,7 @@ export default function Navbar({ onLogout }) {
                 marginBottom: "0.5rem",
                 cursor: "pointer",
                 color: colors.yinmnBlue,
-                fontWeight: "600",
+                fontWeight: "900",
                 borderRadius: "6px",
                 userSelect: "none",
                 transition: "background-color 0.2s",

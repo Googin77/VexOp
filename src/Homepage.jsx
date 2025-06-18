@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import emailjs from '@emailjs/browser';
 import ReCAPTCHA from "react-google-recaptcha";
 
+
+
 const colors = {
   richBlack: "#343434",
   oxfordBlue: "#1b263b",
@@ -275,7 +277,7 @@ const Homepage = () => {
       <div className="flex-grow p-8" style={{ backgroundColor: "white" }}>
         {/* Your Content Here */}
         <p className="text-gray-700">
-          Additional information to come...
+          more information to come...
         </p>
       </div>
           {showContactForm && <ContactForm onClose={handleContactFormClose} />}

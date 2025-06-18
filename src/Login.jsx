@@ -8,7 +8,7 @@ import { db } from "./firebase";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { setUser } = useContext(AuthContext);
+  const { setCurrentUser } = useContext(AuthContext);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,7 +33,7 @@ export default function Login() {
     const role = userData.role || "client";
     const company = userData.company || "Default";
 
-    setUser({ uid: firebaseUser.uid, email: firebaseUser.email, role, company });
+    setCurrentUser({ uid: firebaseUser.uid, email: firebaseUser.email, role, company });
     navigate(`/${role}`);
   } catch (err) {
     setError("Login failed. Please check your credentials.");

@@ -234,6 +234,7 @@ const Homepage = () => {
             style={{
               backgroundColor: colors.yinmnBlue,
               transition: "background-color 0.3s ease",
+               color: 'white', // <-- Add this line
             }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.silverLakeBlue)}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.yinmnBlue)}
@@ -262,6 +263,7 @@ const Homepage = () => {
           style={{
             backgroundColor: colors.yinmnBlue,
             transition: "background-color 0.3s ease",
+            color: 'white', // <-- Add this line
           }}
           onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.silverLakeBlue)}
           onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.yinmnBlue)}

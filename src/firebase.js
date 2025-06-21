@@ -1,6 +1,6 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth"; // Import setPersistence and browserLocalPersistence
 import { getFirestore } from "firebase/firestore"; // Import Firestore
 
 // Your web app's Firebase configuration
@@ -24,5 +24,11 @@ const db = getFirestore(app); // Initialize Firestore
 
 // Constant for the user-facing name of the project
 const projectName = "VexOp";
+
+// Set persistence to local storage
+setPersistence(auth, browserLocalPersistence)
+    .catch((error) => {
+        console.error("Error setting persistence:", error);
+    });
 
 export { app, auth, db, firebaseConfig, projectName }; // Export Firestore

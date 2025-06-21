@@ -8,7 +8,7 @@ import { db } from "./firebase";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { setCurrentUser } = useContext(AuthContext);
+  const {setCurrentUser } = useContext(AuthContext);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

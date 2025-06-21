@@ -33,6 +33,7 @@ const partsList = [
     { name: "D-STEP", id: "dstep", section: "stair" },
     { isTitle: true, name: "Balustrade", section: "balustrade" },
     { name: "NEWEL POST", id: "newelpost", section: "balustrade" },
+    { name: "TURNED BALUSTRADE", id: "turnedbal", section: "balustrade"},
     { name: "BIG POST", id: "bigpost", section: "balustrade" },
     { name: "TURNED NEWEL", id: "turnednewel", section: "balustrade" },
     { name: "BALUSTRADE", id: "balustrade", section: "balustrade" },
@@ -64,8 +65,7 @@ function QuotingCalculator() {
     const [quoteIdToEdit, setQuoteIdToEdit] = useState(null);
     const [quoteBeingEdited, setQuoteBeingEdited] = useState(null);
     const menuRef = useRef(null);
-     const kebabButtonRef = useRef(null);
-
+    const [filteredPartsList, setFilteredPartsList] = useState(partsList);
     const productTypes = [
         { value: "kwilaint", label: "Kwila Internal" },
         { value: "kwilaext", label: "Kwila External" },
@@ -81,7 +81,10 @@ function QuotingCalculator() {
 
     useEffect(() => {
         const fetchPrices = async () => {
-            if (!productType) return;
+            if (!productType) {
+                setFilteredPartsList(partsList); //reset the parts list
+                return;
+            }
             setLoading(true);
             try {
                 const q = query(
@@ -93,13 +96,19 @@ function QuotingCalculator() {
                 if (!querySnapshot.empty) {
                     const data = querySnapshot.docs[0].data();
                     setPrices(data);
+                    // Filter partsList based on the keys in the data object
+                    const availablePartIds = Object.keys(data);
+                    const filteredParts = partsList.filter(part => part.isTitle || availablePartIds.includes(part.id));
+                    setFilteredPartsList(filteredParts);
                 } else {
                     console.log("No document found for product type:", productType);
                     setPrices({});
+                    setFilteredPartsList(partsList); // Optionally reset or handle no data case
                 }
             } catch (error) {
                 console.error("Error fetching prices:", error);
                 setPrices({});
+                setFilteredPartsList(partsList); // Optionally reset or handle error case
             } finally {
                 setLoading(false);
             }
@@ -154,7 +163,7 @@ function QuotingCalculator() {
 
     const calculateSectionTotal = (section) => {
         let sectionTotal = 0;
-        const sectionItems = partsList.filter(part => part.section === section && !part.isTitle);
+        const sectionItems = filteredPartsList.filter(part => part.section === section && !part.isTitle);
 
         for (const item of sectionItems) {
             const quantity = quantities[item.id] === "" ? 0 : parseInt(quantities[item.id], 10) || 0;
@@ -187,58 +196,58 @@ function QuotingCalculator() {
     const total = subtotal + gst;
 
     const handleSubmit = async () => {
-  try {
-    const stairTotal = calculateSectionTotal("stair");
-    const balustradeTotal = calculateSectionTotal("balustrade");
-    const extrasTotal = calculateSectionTotal("extras");
+        try {
+            const stairTotal = calculateSectionTotal("stair");
+            const balustradeTotal = calculateSectionTotal("balustrade");
+            const extrasTotal = calculateSectionTotal("extras");
 
-    const quoteData = {
-      company: currentUser?.company,
-      productType: productType,
-      stairTotal,
-      balustradeTotal,
-      extrasTotal,
-      quoteTitle,
-      total,
-      createdAt: new Date(),
-      quantities,
-      extraCostsQuantity,
-      extraCostsPrice,
+            const quoteData = {
+                company: currentUser?.company,
+                productType: productType,
+                stairTotal,
+                balustradeTotal,
+                extrasTotal,
+                quoteTitle,
+                total,
+                createdAt: new Date(),
+                quantities,
+                extraCostsQuantity,
+                extraCostsPrice,
+            };
+
+            if (isEditing && quoteIdToEdit) {
+                // Update in Firestore
+                const quoteDocRef = doc(db, "quotes", quoteIdToEdit);
+                await setDoc(quoteDocRef, quoteData, { merge: true });
+
+                // Update in local state
+                setSavedQuotes(prevQuotes =>
+                    prevQuotes.map(q => (q.id === quoteIdToEdit ? { id: q.id, ...quoteData } : q))
+                );
+            } else {
+                // Save new in Firestore
+                const docRef = await addDoc(collection(db, "quotes"), quoteData);
+
+                // Add to local state for immediate update
+                setSavedQuotes(prev => [
+                    { id: docRef.id, ...quoteData },
+                    ...prev
+                ]);
+            }
+
+            // Reset form
+            setIsEditing(false);
+            setQuoteIdToEdit(null);
+            setQuoteTitle("");
+            setProductType("");
+            setQuantities({});
+            setExtraCostsQuantity("");
+            setExtraCostsPrice("");
+            setQuoteBeingEdited(null);
+        } catch (error) {
+            console.error("Error saving/updating document: ", error);
+        }
     };
-
-    if (isEditing && quoteIdToEdit) {
-      // Update in Firestore
-      const quoteDocRef = doc(db, "quotes", quoteIdToEdit);
-      await setDoc(quoteDocRef, quoteData, { merge: true });
-      
-      // Update in local state
-      setSavedQuotes(prevQuotes =>
-        prevQuotes.map(q => (q.id === quoteIdToEdit ? { id: q.id, ...quoteData } : q))
-      );
-    } else {
-      // Save new in Firestore
-      const docRef = await addDoc(collection(db, "quotes"), quoteData);
-      
-      // Add to local state for immediate update
-      setSavedQuotes(prev => [
-        { id: docRef.id, ...quoteData },
-        ...prev
-      ]);
-    }
-
-    // Reset form
-    setIsEditing(false);
-    setQuoteIdToEdit(null);
-    setQuoteTitle("");
-    setProductType("");
-    setQuantities({});
-    setExtraCostsQuantity("");
-    setExtraCostsPrice("");
-    setQuoteBeingEdited(null);
-  } catch (error) {
-    console.error("Error saving/updating document: ", error);
-  }
-};
 
 
     const handleDeleteQuote = async (quoteId) => {
@@ -446,17 +455,17 @@ function QuotingCalculator() {
         setMenuOpen(menuOpen === quoteId ? null : quoteId);
     };
 
-     // Create empty rows with tdStyle applied
+    // Create empty rows with tdStyle applied
     const emptyRows = Array(2).fill(null).map((_, index) => (
         <tr key={`empty-${index}`}>
-            <td style={{...savedQuotesTdStyle, padding: '0', borderBottom: 'none'}}>&nbsp;</td>
-            <td style={{...savedQuotesTdStyle, padding: '0', borderBottom: 'none'}}>&nbsp;</td>
-            <td style={{...savedQuotesTdStyle, padding: '0', borderBottom: 'none'}}>&nbsp;</td>
-            <td style={{...savedQuotesTdStyle, padding: '0', borderBottom: 'none'}}>&nbsp;</td>
-            <td style={{...savedQuotesTdStyle, padding: '0', borderBottom: 'none'}}>&nbsp;</td>
-            <td style={{...savedQuotesTdStyle, padding: '0', borderBottom: 'none'}}>&nbsp;</td>
-            <td style={{...savedQuotesTdStyle, padding: '0', borderBottom: 'none'}}>&nbsp;</td>
-            <td style={{...savedQuotesTdStyle, padding: '0', borderBottom: 'none'}}>&nbsp;</td>
+            <td style={{ ...savedQuotesTdStyle, padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+            <td style={{ ...savedQuotesTdStyle, padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+            <td style={{ ...savedQuotesTdStyle, padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+            <td style={{ ...savedQuotesTdStyle, padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+            <td style={{ ...savedQuotesTdStyle, padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+            <td style={{ ...savedQuotesTdStyle, padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+            <td style={{ ...savedQuotesTdStyle, padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+            <td style={{ ...savedQuotesTdStyle, padding: '0', borderBottom: 'none' }}>&nbsp;</td>
         </tr>
     ));
 
@@ -467,14 +476,14 @@ function QuotingCalculator() {
 
             <div style={containerStyle}>
                 <div className="flex justify-between items-center mb-6">
-          <h1 className="text-4xl font-bold">Quote Calculator</h1>
-          <button
-            onClick={() => navigate("/client")}
-            style={buttonStyle}
-          >
-            ← Back to Homepage
-          </button>
-        </div>
+                    <h1 className="text-4xl font-bold">Quote Calculator</h1>
+                    <button
+                        onClick={() => navigate("/client")}
+                        style={buttonStyle}
+                    >
+                        ← Back to Homepage
+                    </button>
+                </div>
                 <h1 style={headerStyle}>Quoting Calculator</h1>
                 <label htmlFor="quoteTitle" style={{ display: "block", marginBottom: "0.5rem", color: colors.oxfordBlue, fontWeight: "500", fontSize: "0.9rem", }}>
                     Quote Title:
@@ -521,7 +530,7 @@ function QuotingCalculator() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {partsList.map((part) => {
+                                    {filteredPartsList.map((part) => { // Use filteredPartsList here
                                         if (part.isTitle) {
                                             return (
                                                 <tr key={part.name}>
@@ -615,8 +624,8 @@ function QuotingCalculator() {
                                     {savedQuotes.map(quote => (
                                         <tr key={quote.id}>
                                             <td style={savedQuotesTdStyle}>
-  {quote.createdAt?.toDate ? quote.createdAt.toDate().toLocaleDateString() : new Date(quote.createdAt).toLocaleDateString()}
-</td>
+                                                {quote.createdAt?.toDate ? quote.createdAt.toDate().toLocaleDateString() : new Date(quote.createdAt).toLocaleDateString()}
+                                            </td>
                                             <td style={savedQuotesTdStyle}>{quote.quoteTitle}</td>
                                             <td style={savedQuotesTdStyle}>{productTypes.find(pt => pt.value === quote.productType)?.label || "Unknown"}</td>
                                             <td style={savedQuotesTdStyle}>${quote.stairTotal?.toFixed(2) || 0}</td>
@@ -657,13 +666,13 @@ function QuotingCalculator() {
                                             </td>
                                         </tr>
                                     ))}
-                                     {Array(2).fill(null).map((_, index) => (
-                                        <tr key={`empty-${index}`} style={{height: '38px'}}>
-                                            <td style={{ padding: '0', borderBottom: 'none'}}>&nbsp;</td>
-                                            <td style={{ padding: '0', borderBottom: 'none'}}>&nbsp;</td>
-<td style={{ padding: '0', borderBottom: 'none'}}>&nbsp;</td>
+                                    {Array(2).fill(null).map((_, index) => (
+                                        <tr key={`empty-${index}`} style={{ height: '38px' }}>
+                                            <td style={{ padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+                                            <td style={{ padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+                                            <td style={{ padding: '0', borderBottom: 'none' }}>&nbsp;</td>
                                         </tr>
-                                    ))}     
+                                    ))}
                                 </tbody>
                             </table>
                         </div>

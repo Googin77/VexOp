@@ -46,6 +46,13 @@ const partsList = [
     { name: "DIMINISH", id: "diminish", section: "balustrade" },
     { isTitle: true, name: "Extras", section: "extras" },
     { name: "DISPOSE", id: "dispose", section: "extras" },
+    { name: "EXT 3 RAIL HARDWOOD", id:"ext3", section: "extras"},
+    { name: "DOWELL", id: "dowell", section: "extras"},
+    { name: "DOWELL THREE RAIL", id: "dowell3", section: "extras"},
+    { name: "EXT 2 RAIL PINE", id: "ext2", section: "extras"},
+    { name: "FOOTINGS", id: "footings", section: "extras"},
+    { name: "POST BALLS/LASER CUT CENTRES", id: "balls", section: "extras"},
+
 ];
 
 function QuotingCalculator() {
@@ -69,14 +76,15 @@ function QuotingCalculator() {
     const productTypes = [
         { value: "kwilaint", label: "Kwila Internal" },
         { value: "kwilaext", label: "Kwila External" },
-        { value: "hardext", label: "Hardwood External" },
+        { value: "hardext", label: "Rough Sawn Hardwood" },
         { value: "durian", label: "Durian" },
         { value: "amoak", label: "American Oak" },
         { value: "brushbox", label: "Brushbox" },
-        { value: "gum", label: "SP-GUM B-BUTT" },
-        { value: "tas", label: "Tas Oak" },
-        { value: "pine", label: "Clear Pine" },
-        { value: "carpet", label: "Carpet" },
+        { value: "gum", label: "Spotted Gum" },
+        { value: "tas", label: "Vic Ash" },
+        { value: "pine", label: "Pine" },
+        { value: "carpet", label: "Cover Grade" },
+        { value: "blackbutt", label: "Blackbutt" },
     ];
 
     useEffect(() => {

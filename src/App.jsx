@@ -1,26 +1,20 @@
-// App.jsx
-import React, { useContext } from "react";
+import React, { useContext, useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-
 import { signOut } from "firebase/auth";
-
 import { auth } from "./firebase";
-
 import Login from "./Login";
 import AdminDashboard from "./AdminDashboard";
 import ClientDashboardHome from "./ClientDashboardHome";
 import Homepage from "./Homepage";
-
 import ProjectsModule from "./modules/ProjectsModule";
 import InvoicesModule from "./modules/InvoicesModule";
 import CRMModule from "./modules/CRMModule";
 import MetricsModule from "./modules/MetricsModule";
 import QuoteCalculatorModule from "./modules/QuoteCalculatorModule";
-
 import { AuthContext } from "./AuthContext";
 
 export default function App() {
-  const { currentUser, authInitialized } = useContext(AuthContext); // Get authInitialized
+  const { currentUser, authInitialized } = useContext(AuthContext);
 
   const handleLogout = () => {
     signOut(auth)
@@ -54,7 +48,7 @@ export default function App() {
       <Route
         path="/client"
         element={
-          currentUser?.role === "client" ? (
+          currentUser ? (
             <ClientDashboardHome onLogout={handleLogout} />
           ) : (
             <Navigate to="/login" replace />
@@ -64,7 +58,7 @@ export default function App() {
       <Route
         path="/client/projects"
         element={
-          currentUser?.role === "client" ? (
+          currentUser ? (
             <ProjectsModule />
           ) : (
             <Navigate to="/login" replace />
@@ -74,7 +68,7 @@ export default function App() {
       <Route
         path="/client/invoices"
         element={
-          currentUser?.role === "client" ? (
+          currentUser ? (
             <InvoicesModule />
           ) : (
             <Navigate to="/login" replace />
@@ -84,7 +78,7 @@ export default function App() {
       <Route
         path="/client/crm"
         element={
-          currentUser?.role === "client" ? (
+          currentUser ? (
             <CRMModule />
           ) : (
             <Navigate to="/login" replace />
@@ -94,7 +88,7 @@ export default function App() {
       <Route
         path="/client/metrics"
         element={
-          currentUser?.role === "client" ? (
+          currentUser ? (
             <MetricsModule />
           ) : (
             <Navigate to="/login" replace />
@@ -104,7 +98,7 @@ export default function App() {
       <Route
         path="/client/quotecalculator"
         element={
-          currentUser?.role === "client" ? (
+          currentUser ? (
             <QuoteCalculatorModule />
           ) : (
             <Navigate to="/login" replace />

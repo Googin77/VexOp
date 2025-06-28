@@ -2,7 +2,7 @@
 import React, { useContext } from "react"; // Import useContext
 import { useNavigate } from "react-router-dom";
 
-import ProjectsPreview from "./modules/ProjectsPreview";
+import JobsPreview from "./modules/JobsPreview";
 import InvoicesPreview from "./modules/InvoicesPreview";
 import CRMPreview from "./modules/CRMPreview";
 import MetricsPreview from "./modules/MetricsPreview";
@@ -10,6 +10,7 @@ import HRDocumentsPreview from "./modules/HRDocumentsPreview";
 import Navbar from "./components/Navbar";
 
 import { AuthContext } from "./AuthContext"; // Import the AuthContext
+
 
 const colors = {
   richBlack: "#343434",
@@ -77,9 +78,9 @@ export default function ClientDashboardHome() {
 
   const cards = [
     {
-      id: "projects",
-      comp: <ProjectsPreview company={company} />,
-      path: "/client/projects",
+      id: "Jobs",
+      comp: <JobsPreview company={company} />,
+      path: "/client/jobs",
     },
     {
       id: "quotecalculator",

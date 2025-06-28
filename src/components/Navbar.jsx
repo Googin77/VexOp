@@ -33,7 +33,7 @@ export default function Navbar({ onLogout }) {
 
   const menuItems = [
     { label: "Home", path: "/client" },
-    { label: "Projects", path: "/client/projects" },
+    { label: "Jobs", path: "/client/jobs" },
     { label: "Quote Calculator", path: "/client/quotecalculator" },
     { label: "Invoices", path: "/client/invoices" },
     { label: "CRM", path: "/client/crm" },

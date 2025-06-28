@@ -6,11 +6,12 @@ import Login from "./Login";
 import AdminDashboard from "./AdminDashboard";
 import ClientDashboardHome from "./ClientDashboardHome";
 import Homepage from "./Homepage";
-import ProjectsModule from "./modules/ProjectsModule";
+import JobsModule from "./modules/JobsModule";
 import InvoicesModule from "./modules/InvoicesModule";
 import CRMModule from "./modules/CRMModule";
 import MetricsModule from "./modules/MetricsModule";
 import QuoteCalculatorModule from "./modules/QuoteCalculatorModule";
+import JobDetail from "./modules/JobDetail";
 import { AuthContext } from "./AuthContext";
 
 export default function App() {
@@ -56,15 +57,19 @@ export default function App() {
         }
       />
       <Route
-        path="/client/projects"
-        element={
-          currentUser ? (
-            <ProjectsModule />
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
+  path="/client/jobs"
+  element={currentUser ? <JobsModule company={currentUser.company} /> : <Navigate to="/login" replace />}
+/>
+<Route
+  path="/client/jobs/:id"
+  element={
+    currentUser ? (
+      <JobDetail />
+    ) : (
+      <Navigate to="/login" replace />
+    )
+  }
+/>
       <Route
         path="/client/invoices"
         element={

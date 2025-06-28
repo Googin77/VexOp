@@ -60,7 +60,7 @@ export default function ClientDashboardHome() {
     borderRadius: "16px",
     padding: "1.5rem 1.5rem 2rem",
     width: "320px",
-    height: "320px",
+    height: "340px",
     cursor: "pointer",
     boxShadow: `0 8px 20px rgba(27, 38, 59, 0.12), inset 0 0 60px rgba(27, 38, 59, 0.03)`,
     display: "flex",

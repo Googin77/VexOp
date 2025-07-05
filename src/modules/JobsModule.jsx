@@ -15,17 +15,18 @@ import {
   doc,
   setDoc,
 } from "firebase/firestore";
-import { db } from "../firebase";
-import { getAuth } from "firebase/auth"; // <-- 1. IMPORT getAuth
+// --- Import 'auth' from your firebase config to get the user token ---
+import { db, auth } from "../firebase"; 
+import { getIdToken } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { AuthContext } from "../AuthContext";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEllipsisV } from "@fortawesome/free-solid-svg-icons";
+
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
-// --- Style and utility constants ---
 const colors = {
   richBlack: "#343434",
   oxfordBlue: "#1b263b",
@@ -49,7 +50,9 @@ const formatDate = (dateString) => {
   }
 };
 
+// --- IMPORTANT: Replace this with your actual Cloud Function Trigger URL ---
 const CLOUD_FUNCTION_URL = 'https://places-api-proxy-secure-927846386659.australia-southeast1.run.app';
+
 
 export default function JobsModule({ company }) {
   const [jobs, setJobs] = useState([]);
@@ -66,6 +69,7 @@ export default function JobsModule({ company }) {
   const [menuOpen, setMenuOpen] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [jobIdToEdit, setJobIdToEdit] = useState(null);
+  
   const streetAddressInputRef = useRef(null);
   const [autocompletePredictions, setAutocompletePredictions] = useState([]);
   const menuRef = useRef(null);
@@ -78,7 +82,9 @@ export default function JobsModule({ company }) {
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, [menuRef]);
 
   useEffect(() => {
@@ -89,9 +95,16 @@ export default function JobsModule({ company }) {
       }
       try {
         setLoading(true);
-        const q = query(collection(db, "jobs"), where("company", "==", company), orderBy("createdAt", "desc"));
+        const q = query(
+          collection(db, "jobs"),
+          where("company", "==", company),
+          orderBy("createdAt", "desc")
+        );
         const snapshot = await getDocs(q);
-        const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
         setJobs(data);
       } catch (err) {
         console.error("Error fetching jobs:", err);
@@ -102,23 +115,34 @@ export default function JobsModule({ company }) {
     fetchJobs();
   }, [company]);
 
-  // --- REVISED: Securely authenticates requests using the user's Firebase ID token ---
-  const getAuthenticatedFetch = async (url) => {
-    const auth = getAuth();
-    const user = auth.currentUser; // <-- 2. GET THE LIVE USER OBJECT
+  const sortedJobs = [...jobs].sort((a, b) => {
+    const aVal = a[sortKey]?.toLowerCase?.() || a[sortKey] || "";
+    const bVal = b[sortKey]?.toLowerCase?.() || b[sortKey] || "";
+    return sortOrder === "asc" ? (aVal > bVal ? 1 : -1) : aVal < bVal ? 1 : -1;
+  });
 
-    if (!user) {
-      console.error("Authentication error: No user is signed in.");
-      throw new Error("User is not authenticated.");
+  const toggleSort = (key) => {
+    if (key === sortKey) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortOrder("asc");
     }
-    
-    // This will now work correctly as 'user' is the full Firebase user instance
-    const token = await user.getIdToken();
+  };
 
+  // --- Helper function for making authenticated API calls with a Firebase Auth Token ---
+  const getAuthenticatedFetch = async (url) => {
+    const user = auth.currentUser;
+    if (!user) {
+        console.error("No user is signed in to make an authenticated request.");
+        return null;
+    }
+    const token = await getIdToken(user);
+    
     return fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
     });
   };
 
@@ -129,9 +153,13 @@ export default function JobsModule({ company }) {
     if (value.length > 3) {
       try {
         const response = await getAuthenticatedFetch(`${CLOUD_FUNCTION_URL}?endpoint=autocomplete&input=${encodeURIComponent(value)}`);
-        if (!response.ok) throw new Error(`Server responded with ${response.status}`);
+        if (!response) return; // Stop if user is not logged in
         const data = await response.json();
-        setAutocompletePredictions(data.predictions || []);
+        if (data.predictions) {
+          setAutocompletePredictions(data.predictions);
+        } else {
+          setAutocompletePredictions([]);
+        }
       } catch (error) {
         console.error("Error fetching address predictions:", error);
         setAutocompletePredictions([]);
@@ -142,21 +170,27 @@ export default function JobsModule({ company }) {
   };
   
   const handlePredictionSelect = async (prediction) => {
-    setAutocompletePredictions([]);
     try {
       const response = await getAuthenticatedFetch(`${CLOUD_FUNCTION_URL}?endpoint=details&place_id=${prediction.place_id}`);
-      if (!response.ok) throw new Error(`Server responded with ${response.status}`);
+      if (!response) return; // Stop if user is not logged in
       const data = await response.json();
-      setStreetAddress(data.result?.formatted_address || prediction.description);
+      if (data.result && data.result.formatted_address) {
+        setStreetAddress(data.result.formatted_address);
+      } else {
+        setStreetAddress(prediction.description);
+      }
+      setAutocompletePredictions([]);
     } catch (error) {
       console.error("Error fetching place details:", error);
       setStreetAddress(prediction.description);
+      setAutocompletePredictions([]);
     }
   };
 
   async function handleAddJob(e) {
     e.preventDefault();
-    if (!newName || !assignedTo || !streetAddress) return alert("Please complete all required fields");
+    if (!newName || !assignedTo || !streetAddress)
+      return alert("Please complete all required fields");
 
     const newJobData = {
       name: newName,
@@ -173,14 +207,20 @@ export default function JobsModule({ company }) {
 
     try {
       setLoading(true);
+
       if (isEditing && jobIdToEdit) {
         const jobDocRef = doc(db, "jobs", jobIdToEdit);
         await setDoc(jobDocRef, newJobData, { merge: true });
-        setJobs((prevJobs) => prevJobs.map((job) => (job.id === jobIdToEdit ? { id: job.id, ...newJobData } : job)));
+        setJobs((prevJobs) =>
+          prevJobs.map((job) =>
+            job.id === jobIdToEdit ? { id: job.id, ...newJobData } : job
+          )
+        );
       } else {
         const docRef = await addDoc(collection(db, "jobs"), newJobData);
         setJobs((prevJobs) => [{ id: docRef.id, ...newJobData }, ...prevJobs]);
       }
+
       setNewName("");
       setNewStatus("");
       setNewDueDate("");
@@ -188,28 +228,13 @@ export default function JobsModule({ company }) {
       setStreetAddress("");
       setIsEditing(false);
       setJobIdToEdit(null);
+
     } catch (error) {
       console.error("Error adding/updating job:", error);
     } finally {
       setLoading(false);
     }
   }
-
-  // --- No changes to other handlers or JSX rendering ---
-  const sortedJobs = [...jobs].sort((a, b) => {
-    const aVal = a[sortKey]?.toLowerCase?.() || a[sortKey] || "";
-    const bVal = b[sortKey]?.toLowerCase?.() || b[sortKey] || "";
-    return sortOrder === "asc" ? (aVal > bVal ? 1 : -1) : aVal < bVal ? 1 : -1;
-  });
-
-  const toggleSort = (key) => {
-    if (key === sortKey) {
-      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortOrder("asc");
-    }
-  };
 
   const handleDeleteJob = async (jobId) => {
     try {
@@ -237,15 +262,32 @@ export default function JobsModule({ company }) {
       setMenuOpen(null);
       return;
     }
+
     const rect = event.currentTarget.getBoundingClientRect();
     const menuHeight = 80;
     const spaceBelow = window.innerHeight - rect.bottom;
-    const style = { position: "absolute", right: 0, backgroundColor: "white", border: "1px solid #ccc", borderRadius: "4px", padding: "5px 0", zIndex: 100, minWidth: "150px" };
-    if (spaceBelow < menuHeight) { style.bottom = "100%"; } else { style.top = "100%"; }
+
+    const style = {
+      position: "absolute",
+      right: 0,
+      backgroundColor: "white",
+      border: "1px solid #ccc",
+      borderRadius: "4px",
+      padding: "5px 0",
+      zIndex: 100,
+      minWidth: "150px",
+    };
+
+    if (spaceBelow < menuHeight) {
+      style.bottom = "100%";
+    } else {
+      style.top = "100%";
+    }
+
     setMenuStyle(style);
     setMenuOpen(jobId);
   };
-  
+
   const getMapLink = (address) => {
     if (!address) return null;
     const encodedAddress = encodeURIComponent(address);
@@ -324,7 +366,15 @@ export default function JobsModule({ company }) {
               <DatePicker
                 id="dueDate"
                 selected={newDueDate ? new Date(newDueDate) : null}
-                onChange={(date) => setNewDueDate(date ? date.toISOString().split('T')[0] : "")}
+                onChange={(date) => {
+                  if (date) {
+                    const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+                    const adjustedDate = new Date(date.getTime() - userTimezoneOffset);
+                    setNewDueDate(adjustedDate.toISOString().split('T')[0]);
+                  } else {
+                    setNewDueDate("");
+                  }
+                }}
                 dateFormat="dd.MM.yyyy"
                 placeholderText="Select or type a date"
                 wrapperClassName="w-full"

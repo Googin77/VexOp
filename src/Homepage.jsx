@@ -217,7 +217,7 @@ const Homepage = () => {
             
           >
             <img
-              src="/zoomedlogo.png"
+              src="/logo.png"
               alt="VexOp+ Logo"
               style={{
                 height: "120px",

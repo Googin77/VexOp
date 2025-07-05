@@ -83,7 +83,7 @@ export default function Navbar({ onLogout }) {
   }}
 >
   <img
-    src="/zoomedlogo.png"
+    src="/logo.png"
     alt="VexOp+ Logo"
     style={{
       height: "100px",

@@ -213,3 +213,11 @@ export default function App() {
         </Routes>
     );
 }
+
+
+
+
+<script
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDTefXacd27pqzm6wy2v7cGTjtNhg-na0c&libraries=places&loading=async&v=weekly"
+  defer
+></script>

@@ -106,7 +106,7 @@ export default function JobDetail() {
       <Navbar onLogout={() => navigate("/login")} />
       <div style={containerStyle}>
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">Edit Job</h1>
+          <h1 className="text-3xl font-bold">Job Details</h1>
           <button
             onClick={() => navigate("/client/jobs")}
             style={{ ...buttonStyle, backgroundColor: colors.yinmnBlue, color: "white" }}

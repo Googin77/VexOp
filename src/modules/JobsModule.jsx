@@ -51,7 +51,7 @@ const formatDate = (dateString) => {
 };
 
 // --- IMPORTANT: Replace this with your actual Cloud Function Trigger URL ---
-const CLOUD_FUNCTION_URL = 'https://places-api-proxy-secure-927846386659.australia-southeast1.run.app';
+const CLOUD_FUNCTION_URL = 'https://vexop-places-proxy-927846386659.australia-southeast1.run.app';
 
 
 export default function JobsModule({ company }) {

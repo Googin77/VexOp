@@ -1,58 +1,52 @@
-// AuthContext.jsx
-import React, { createContext, useState, useEffect } from "react";
+// CORRECTED LINE: Added 'useContext' to the import list
+import React, { createContext, useState, useEffect, useContext } from 'react';
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
 
 export const AuthContext = createContext();
 
-export function AuthProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState(undefined);
-  const [authInitialized, setAuthInitialized] = useState(false); // New state
+export const AuthProvider = ({ children }) => {
+    const [currentUser, setCurrentUser] = useState(null);
+    const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let resolveAuthPromise;
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                const userDocRef = doc(db, "users1", user.uid);
+                const userDocSnap = await getDoc(userDocRef);
+                if (userDocSnap.exists()) {
+                    const userData = userDocSnap.data();
+                    setCurrentUser({
+                        uid: user.uid,
+                        email: user.email,
+                        role: userData.role,
+                        company: userData.company,
+                    });
+                } else {
+                    setCurrentUser(user);
+                }
+            } else {
+                setCurrentUser(null);
+            }
+            setLoading(false);
+        });
 
-    const authPromise = new Promise((resolve) => {
-      resolveAuthPromise = resolve;
-    });
+        return () => unsubscribe();
+    }, []);
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          const userDocRef = doc(db, "users1", firebaseUser.uid);
-          const userDocSnap = await getDoc(userDocRef);
+    const value = {
+        currentUser,
+        setCurrentUser
+    };
 
-          if (userDocSnap.exists()) {
-            const userData = userDocSnap.data();
-            const company = userData.company;
+    return (
+        <AuthContext.Provider value={value}>
+            {!loading && children}
+        </AuthContext.Provider>
+    );
+};
 
-            setCurrentUser({
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              company,
-            });
-          } else {
-            console.warn("No matching user document found in Firestore.");
-            setCurrentUser(null);
-          }
-        } catch (error) {
-          console.error("Error fetching user metadata:", error);
-          setCurrentUser(null);
-        }
-      } else {
-        setCurrentUser(null);
-      }
-      setAuthInitialized(true); // Set initialized to true
-      resolveAuthPromise(); // Resolve the promise
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  return (
-    <AuthContext.Provider value={{ currentUser, authInitialized, setCurrentUser }}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
+export const useAuth = () => {
+    return useContext(AuthContext);
+};

@@ -1,49 +1,87 @@
-// src/App.jsx (Updated)
-import React, { useContext } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
-import { AuthContext } from "./AuthContext";
 
-// Layout
-import MainLayout from "./components/MainLayout"; // <-- Import MainLayout
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './AuthContext';
 
-// Pages
-import Login from "./Login";
-import Homepage from "./Homepage";
-import ClientDashboardHome from "./ClientDashboardHome";
-import JobsModule from "./modules/JobsModule";
-import JobDetail from "./modules/JobDetail";
-import QuoteCalculatorModule from "./modules/QuoteCalculatorModule";
-// ... import other modules
+// Layouts and Components
+import PublicLayout from './components/PublicLayout';
 
-export default function App() {
-  const { currentUser, authInitialized } = useContext(AuthContext);
+// Standalone Pages
+import Login from './Login';
 
-  if (!authInitialized) {
-    return <div className="flex h-screen items-center justify-center">Loading...</div>;
+// Public Pages
+import Homepage from './Homepage';
+import Solutions from './Solutions';
+import Pricing from './Pricing';
+// NEW: Re-add imports for the legal pages
+import PrivacyPolicy from './PrivacyPolicy';
+import TermsOfService from './TermsOfService';
+
+// Authenticated (Private) Pages
+import AdminDashboard from './AdminDashboard';
+import ClientDashboardHome from './ClientDashboardHome';
+
+function PrivateRoute({ children, role, userRole }) {
+  const { currentUser } = useAuth();
+  if (!currentUser) {
+    return <Navigate to="/login" />;
   }
+  if (role && userRole !== role) {
+    return <Navigate to="/" />;
+  }
+  return children;
+}
 
-  // A wrapper for protected routes
-  const ProtectedRoute = ({ children }) => {
-    if (!currentUser) {
-      return <Navigate to="/login" replace />;
-    }
-    // Wrap the children (the page component) in the MainLayout
-    return <MainLayout>{children}</MainLayout>;
-  };
+function AppContent() {
+  const { currentUser } = useAuth();
+  const userRole = currentUser ? currentUser.role : null;
 
   return (
     <Routes>
-      <Route path="/" element={<Homepage />} />
-      <Route path="/login" element={!currentUser ? <Login /> : <Navigate to="/client" />} />
+      {/* Routes with the Public Header and Footer */}
+      <Route element={<PublicLayout />}>
+        <Route path="/" element={<Homepage />} />
+        <Route path="/solutions" element={<Solutions />} />
+        <Route path="/pricing" element={<Pricing />} />
+        {/* NEW: Add the routes for the legal pages back in */}
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/terms-of-service" element={<TermsOfService />} />
+      </Route>
 
-      {/* All client routes are now nested and protected */}
-      <Route path="/client" element={<ProtectedRoute><ClientDashboardHome /></ProtectedRoute>} />
-      <Route path="/client/jobs" element={<ProtectedRoute><JobsModule company={currentUser?.company} /></ProtectedRoute>} />
-      <Route path="/client/jobs/:id" element={<ProtectedRoute><JobDetail /></ProtectedRoute>} />
-      <Route path="/client/quotecalculator" element={<ProtectedRoute><QuoteCalculatorModule /></ProtectedRoute>} />
-      {/* Add other protected routes here in the same way */}
+      {/* Standalone route without the public layout */}
+      <Route path="/login" element={<Login />} />
 
-      <Route path="*" element={<Navigate to={currentUser ? "/client" : "/"} replace />} />
+       <Route
+        path="/admin"
+        element={
+          <PrivateRoute role="admin" userRole={userRole}>
+            <AdminDashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/client"
+        element={
+          <PrivateRoute role="client" userRole={userRole}>
+            <ClientDashboardHome />
+          </PrivateRoute>
+        }
+      />
+
+      <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
 }
+
+
+function App() {
+  return (
+    // AuthProvider is now defined thanks to the import
+    <AuthProvider>
+        
+        <AppContent />
+   
+    </AuthProvider>
+  );
+}
+
+export default App;

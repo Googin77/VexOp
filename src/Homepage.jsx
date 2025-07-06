@@ -1,290 +1,77 @@
-import React, { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import emailjs from '@emailjs/browser';
-import ReCAPTCHA from "react-google-recaptcha";
+import React from "react";
+// REMOVED: No need to import ContactForm here anymore
+import { useOutletContext } from "react-router-dom";
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faBriefcase, faCalculator, faUsers, faShieldAlt, faChartLine, faArrowRight } from '@fortawesome/free-solid-svg-icons';
 
-
-
-const colors = {
-  richBlack: "#343434",
-  oxfordBlue: "#1b263b",
-  yinmnBlue: "#415a77",
-  silverLakeBlue: "#778da9a",
-  platinum: "#d9d9d9",
-};
-
-// ContactForm Component
-const ContactForm = ({ onClose }) => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [message, setMessage] = useState('');
-  const [company, setCompany] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submissionResult, setSubmissionResult] = useState(null);
-  const [captcha, setCaptcha] = useState(null);
-
-  const serviceId = 'service_vug8zg7';
-  const templateId = 'template_fzqn41o';
-  const publicKey = 'u6u4zgH2v5fV8GUJO';
-  const formRef = useRef(null);
-
-  const handleCaptchaChange = (value) => {
-    setCaptcha(value);
-  };
-
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setSubmissionResult(null);
-
-      if (!captcha) {
-      setSubmissionResult({ success: false, message: 'Please complete the reCAPTCHA.' });
-      setIsSubmitting(false);
-      return;
-    }
-
-    const templateParams = {
-      from_name: name,
-      from_email: email,
-      message: message,
-      company: company,
-    };
-    emailjs
-      .send(serviceId, templateId, templateParams, publicKey)
-      .then((result) => {
-        console.log(result.text);
-        setSubmissionResult({ success: true, message: "Thank you! Your message has been sent." });
-        setName('');
-        setEmail('');
-        setMessage('');
-        setCompany('');
-        setIsSubmitting(false); // Reset the submission state
-        setCaptcha(null);
-      })
-      .catch((error) => {
-        console.error(error);
-        setSubmissionResult({ success: false, message: "Oops! There was an error submitting your message." });
-        setIsSubmitting(false); // Ensure isSubmitting is set to false even in the event of an error
-      });
-  };
-
-    useEffect(() => {
-    function handleClickOutside(event) {
-      if (formRef.current && !formRef.current.contains(event.target)) {
-        onClose();
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [onClose]);
-
-    return (
-    <div className="fixed top-0 left-0 w-full h-full bg-gray-500 bg-opacity-75 flex items-center justify-center z-50" >
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8" ref={formRef}>
-        <h2 className="text-3xl font-bold mb-6 text-gray-800">Contact Us</h2>
-
-        {submissionResult && (
-          <div className={`mb-4 p-3 rounded ${submissionResult.success ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-            {submissionResult.message}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="name">
-              Name
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="name"
-              type="text"
-              placeholder="Your Name"
-              name="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
-              Email
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="email"
-              type="email"
-              placeholder="Your Email"
-              name="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-             <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="company">
-              Company
-            </label>
-            <input
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="company"
-              type="text"
-              placeholder="Your company"
-              name="company"
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="mb-6">
-            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="message">
-              Message
-            </label>
-            <textarea
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              id="message"
-              placeholder="Your Message"
-              name="message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows="6"
-              required
-            />
-          </div>
-    <div className="flex flex-col items-center mt-4">
-            <ReCAPTCHA
-              sitekey="6Ld3dWIrAAAAABBYrwcC3D25whZQb2WuH1qz8v4u"
-              onChange={handleCaptchaChange}
-            />
-        {!captcha && submissionResult && !submissionResult.success && (
-          <div className="text-red-500 mt-2">Please complete the reCAPTCHA.</div>
-        )}
-        </div>
-
-          <div className="flex justify-between mt-6">
-          <button
-              className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-              type="button"
-              onClick={onClose}
-            >
-              Cancel
-            </button>
-            <button
-              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-              type="submit"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "Submitting..." : "Submit"}
-            </button>
-
-          </div>
-        </form>
+const FeatureCard = ({ icon, title, children }) => (
+    <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 text-center sm:text-left">
+      <div className="flex items-center justify-center h-12 w-12 rounded-full bg-brand-accent-secondary text-white mb-4 mx-auto sm:mx-0">
+        <FontAwesomeIcon icon={icon} size="lg" />
       </div>
+      <h3 className="text-xl font-bold text-brand-dark mb-2">{title}</h3>
+      <p className="text-gray-600">{children}</p>
     </div>
-  );
-};
+);
 
 const Homepage = () => {
-  const navigate = useNavigate();
-  const [showContactForm, setShowContactForm] = useState(false);
+    // SIMPLIFIED: We only need the click handler from the context now
+    const { handleContactClick } = useOutletContext();
 
-  const handleRegisterInterestClick = () => {
-    setShowContactForm(true);
-  };
+    return (
+        <>
+            {/* Hero Section */}
+            <div className="relative bg-white overflow-hidden">
+                <div className="max-w-7xl mx-auto">
+                    <div className="relative z-10 pb-8 bg-white sm:pb-16 md:pb-20 lg:max-w-2xl lg:w-full lg:pb-28 xl:pb-32">
+                        <main className="mt-10 mx-auto max-w-7xl px-4 sm:mt-12 sm:px-6 md:mt-16 lg:mt-20 lg:px-8 xl:mt-28">
+                            <div className="sm:text-center lg:text-left">
+                                <h1 className="text-4xl tracking-tight font-extrabold text-brand-dark sm:text-5xl md:text-6xl">
+                                    <span className="block xl:inline">The Operating System for</span>{' '}
+                                    <span className="block text-brand-accent-secondary xl:inline">Your Trade Business</span>
+                                </h1>
+                                <p className="mt-3 text-base text-gray-500 sm:mt-5 sm:text-lg sm:max-w-xl sm:mx-auto md:mt-5 md:text-xl lg:mx-0">
+                                    From startup to established enterprise, VexOp+ provides the tools and expert guidance to streamline operations, ensure compliance, and drive growth.
+                                </p>
+                                <div className="mt-5 sm:mt-8 sm:flex sm:justify-center lg:justify-start">
+                                    <div className="rounded-md shadow">
+                                        <button onClick={handleContactClick} className="w-full flex items-center justify-center px-8 py-3 border-transparent text-base font-medium rounded-md text-white bg-brand-dark hover:bg-opacity-90 md:py-4 md:text-lg md:px-10">
+                                            Register Interest
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </main>
+                    </div>
+                </div>
+                <div className="lg:absolute lg:inset-y-0 lg:right-0 lg:w-1/2">
+                    <img className="h-56 w-full object-cover sm:h-72 md:h-96 lg:w-full lg:h-full" src="https://www.dtf.vic.gov.au/sites/default/files/2024-10/Two-people-in-high-vis-clothing-looking-at-a-laptop.jpg" alt="Engineer with Tablet" />
+                </div>
+            </div>
 
-  const handleContactFormClose = () => {
-    setShowContactForm(false);
-  };
-
-  return (
-    <div
-      className="flex flex-col min-h-screen"
-      style={{
-        backgroundColor: colors.platinum,
-        color: colors.richBlack,
-        fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-      }}
-    >
-         <header className="w-full py-0 px-4" style={{ backgroundColor: colors.richBlack }}>
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          {/* Logo with Adjusted Styling */}
-          <div
+            {/* Feature Section */}
+            <div id="features" className="py-12 sm:py-20 bg-brand-bg scroll-mt-20">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="text-center">
+                        <h2 className="text-base text-brand-accent font-semibold tracking-wide uppercase">Why VexOp+</h2>
+                        <p className="mt-2 text-3xl font-extrabold text-brand-dark tracking-tight sm:text-4xl">
+                            Everything you need. More than you expect.
+                        </p>
+                    </div>
+                    <div className="mt-12 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+                        <FeatureCard icon={faBriefcase} title="Job Management">Track jobs from lead to final payment. Keep your team on schedule and your clients informed.</FeatureCard>
+                        <FeatureCard icon={faCalculator} title="Quoting & Invoicing">Create professional quotes in minutes and convert them to invoices with one click. Get paid faster.</FeatureCard>
+                        <FeatureCard icon={faUsers} title="Startup to Enterprise">Whether you're a sole trader or an established company, our workflows scale to your needs.</FeatureCard>
+                        <FeatureCard icon={faShieldAlt} title="Compliance & Safety">Our standout feature. Access risk profiles, compliance guides, and safety workflows to protect your business.</FeatureCard>
+                        <FeatureCard icon={faChartLine} title="Business Advisory">Go beyond operations with guidance on company setup, financial management, and strategic growth.</FeatureCard>
+                        <FeatureCard icon={faArrowRight} title="Seamless Integration">Connect with popular accounting software like Xero and MYOB to streamline your entire workflow.</FeatureCard>
+                    </div>
+                </div>
+            </div>
             
-          >
-            <img
-              src="/logo.png"
-              alt="VexOp+ Logo"
-              style={{
-                height: "120px",
-                width: "auto",
-                objectFit: "contain",
-              }}
-            />
-          </div>
-
-          {/* Sign In Button (Right) */}
-          <button
-            onClick={() => navigate("/login")}
-            className="bg-yinmnBlue text-platinum font-bold py-2 px-4 rounded"
-            style={{
-              backgroundColor: colors.yinmnBlue,
-              transition: "background-color 0.3s ease",
-               color: 'white', // <-- Add this line
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.silverLakeBlue)}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.yinmnBlue)}
-          >
-            Sign In
-          </button>
-        </div>
-      </header>
-
-      {/* Main Content Section */}
-      <main className="flex flex-col items-center py-16">
-        {/* Hero Text */}
-        <h1 className="text-4xl font-bold mb-4" style={{ color: colors.oxfordBlue }}>
-          The Modern Solution for Trade Companies
-        </h1>
-        <p
-          className="text-gray-700 mb-8 text-center max-w-3xl px-4"
-          style={{ fontSize: "1.2rem", lineHeight: "1.6" }}
-        >
-          VexOp+ is the easiest way for building, trade and construction companies to stay organised, grow profitability, reduce waste, and deliver greater client satisfaction.
-        </p>
-        {/* Register Interest Button (Center) */}
-        <button
-          onClick={handleRegisterInterestClick}
-          className="bg-yinmnBlue text-platinum font-bold py-2 px-4 rounded"
-          style={{
-            backgroundColor: colors.yinmnBlue,
-            transition: "background-color 0.3s ease",
-            color: 'white', // <-- Add this line
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.silverLakeBlue)}
-          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.yinmnBlue)}
-        >
-          Register Interest
-        </button>
-      </main>
-
-      {/* Shadow Divider */}
-      <div className="w-full h-1 shadow-md" style={{ backgroundColor: "transparent" }} />
-
-      {/* White Content Below */}
-      <div className="flex-grow p-8" style={{ backgroundColor: "white" }}>
-        {/* Your Content Here */}
-        <p className="text-gray-700">
-          more information to come...
-        </p>
-      </div>
-          {showContactForm && <ContactForm onClose={handleContactFormClose} />}
-    </div>
-  );
+            {/* REMOVED: The conditional rendering of the form is no longer here. */}
+        </>
+    );
 };
 
 export default Homepage;

@@ -1,3 +1,4 @@
+// src/modules/JobsModule.jsx (Complete and Corrected)
 import React, {
   useEffect,
   useState,
@@ -15,437 +16,304 @@ import {
   doc,
   setDoc,
 } from "firebase/firestore";
-// --- Import 'auth' from your firebase config to get the user token ---
 import { db, auth } from "../firebase"; 
 import { getIdToken } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
-import Navbar from "../components/Navbar";
-import { AuthContext } from "../AuthContext";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faEllipsisV } from "@fortawesome/free-solid-svg-icons";
-
+import { faEllipsisV, faSort, faSortUp, faSortDown } from "@fortawesome/free-solid-svg-icons";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
-const colors = {
-  richBlack: "#343434",
-  oxfordBlue: "#1b263b",
-  yinmnBlue: "#415a77",
-  silverLakeBlue: "#778da9",
-  platinum: "#d9d9d9",
+// Helper function for styling status badges
+const getStatusBadgeClass = (status) => {
+    switch (status) {
+        case "Pending": return "bg-yellow-100 text-yellow-800";
+        case "In Progress": return "bg-blue-100 text-blue-800";
+        case "Completed": return "bg-green-100 text-green-800";
+        default: return "bg-gray-100 text-gray-800";
+    }
 };
 
 const formatDate = (dateString) => {
   if (!dateString) return "N/A";
   try {
     const date = new Date(dateString);
-    const userTimezoneOffset = date.getTimezoneOffset() * 60000;
-    const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
-    const day = String(adjustedDate.getDate()).padStart(2, '0');
-    const month = String(adjustedDate.getMonth() + 1).padStart(2, '0');
-    const year = String(adjustedDate.getFullYear()).slice(-2);
-    return `${day}.${month}.${year}`;
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = String(date.getFullYear()).slice(-2);
+    return `${day}/${month}/${year}`;
   } catch (error) {
     return "Invalid Date";
   }
 };
 
-// --- IMPORTANT: Replace this with your actual Cloud Function Trigger URL ---
 const CLOUD_FUNCTION_URL = 'https://buildops-places-proxy-255481704627.australia-southeast1.run.app';
-
 
 export default function JobsModule({ company }) {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Form State
   const [newName, setNewName] = useState("");
-  const [newStatus, setNewStatus] = useState("");
-  const [newDueDate, setNewDueDate] = useState("");
+  const [newStatus, setNewStatus] = useState("Pending");
+  const [newDueDate, setNewDueDate] = useState(null);
   const [assignedTo, setAssignedTo] = useState("");
   const [streetAddress, setStreetAddress] = useState("");
-  const [sortKey, setSortKey] = useState("name");
-  const [sortOrder, setSortOrder] = useState("asc");
-  const navigate = useNavigate();
-  const { currentUser } = useContext(AuthContext);
-  const [menuOpen, setMenuOpen] = useState(null);
+  const [isAddressSelected, setIsAddressSelected] = useState(false);
+  const [autocompletePredictions, setAutocompletePredictions] = useState([]);
+
+  // Editing State
   const [isEditing, setIsEditing] = useState(false);
   const [jobIdToEdit, setJobIdToEdit] = useState(null);
-  
-  const streetAddressInputRef = useRef(null);
-  const [autocompletePredictions, setAutocompletePredictions] = useState([]);
+
+  // Table State
+  const [sortKey, setSortKey] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [menuOpen, setMenuOpen] = useState(null);
   const menuRef = useRef(null);
-  const [menuStyle, setMenuStyle] = useState({});
+  
+  const navigate = useNavigate();
 
+  // Fetching and Sorting Logic...
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setMenuOpen(null);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [menuRef]);
-
-  useEffect(() => {
+    if (!company) { setLoading(false); return; }
     async function fetchJobs() {
-      if (!company) {
-        setLoading(false);
-        return;
-      }
       try {
         setLoading(true);
-        const q = query(
-          collection(db, "jobs"),
-          where("company", "==", company),
-          orderBy("createdAt", "desc")
-        );
+        const q = query(collection(db, "jobs"), where("company", "==", company), orderBy(sortKey, sortOrder));
         const snapshot = await getDocs(q);
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setJobs(data);
-      } catch (err) {
-        console.error("Error fetching jobs:", err);
-      } finally {
-        setLoading(false);
-      }
+        setJobs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (err) { console.error("Error fetching jobs:", err); } 
+      finally { setLoading(false); }
     }
     fetchJobs();
-  }, [company]);
+  }, [company, sortKey, sortOrder]);
 
-  const sortedJobs = [...jobs].sort((a, b) => {
-    const aVal = a[sortKey]?.toLowerCase?.() || a[sortKey] || "";
-    const bVal = b[sortKey]?.toLowerCase?.() || b[sortKey] || "";
-    return sortOrder === "asc" ? (aVal > bVal ? 1 : -1) : aVal < bVal ? 1 : -1;
-  });
-
+  // **THE MISSING FUNCTION IS HERE**
   const toggleSort = (key) => {
+    // If clicking the same key, reverse the order
     if (key === sortKey) {
-      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
+      // If clicking a new key, set it and default to ascending
       setSortKey(key);
-      setSortOrder("asc");
+      setSortOrder('asc');
     }
   };
 
-  // --- Helper function for making authenticated API calls with a Firebase Auth Token ---
   const getAuthenticatedFetch = async (url) => {
     const user = auth.currentUser;
-    if (!user) {
-        console.error("No user is signed in to make an authenticated request.");
-        return null;
-    }
+    if (!user) return null;
     const token = await getIdToken(user);
-    
-    return fetch(url, {
-        headers: {
-            'Authorization': `Bearer ${token}`
-        }
-    });
+    return fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
   };
 
   const handleStreetAddressChange = async (e) => {
     const value = e.target.value;
     setStreetAddress(value);
-
-    if (value.length > 3) {
+    setIsAddressSelected(false);
+    if (value.length > 2) {
       try {
         const response = await getAuthenticatedFetch(`${CLOUD_FUNCTION_URL}?endpoint=autocomplete&input=${encodeURIComponent(value)}`);
-        if (!response) return; // Stop if user is not logged in
         const data = await response.json();
-        if (data.predictions) {
-          setAutocompletePredictions(data.predictions);
-        } else {
-          setAutocompletePredictions([]);
-        }
-      } catch (error) {
-        console.error("Error fetching address predictions:", error);
-        setAutocompletePredictions([]);
-      }
-    } else {
-      setAutocompletePredictions([]);
-    }
+        setAutocompletePredictions(data.predictions || []);
+      } catch (error) { console.error("Error fetching address predictions:", error); }
+    } else { setAutocompletePredictions([]); }
   };
   
-  const handlePredictionSelect = async (prediction) => {
-    try {
-      const response = await getAuthenticatedFetch(`${CLOUD_FUNCTION_URL}?endpoint=details&place_id=${prediction.place_id}`);
-      if (!response) return; // Stop if user is not logged in
-      const data = await response.json();
-      if (data.result && data.result.formatted_address) {
-        setStreetAddress(data.result.formatted_address);
-      } else {
-        setStreetAddress(prediction.description);
-      }
-      setAutocompletePredictions([]);
-    } catch (error) {
-      console.error("Error fetching place details:", error);
-      setStreetAddress(prediction.description);
-      setAutocompletePredictions([]);
-    }
+  const handlePredictionSelect = (prediction) => {
+    setStreetAddress(prediction.description);
+    setIsAddressSelected(true);
+    setAutocompletePredictions([]);
+  };
+
+  const resetForm = () => {
+    setNewName("");
+    setNewStatus("Pending");
+    setNewDueDate(null);
+    setAssignedTo("");
+    setStreetAddress("");
+    setIsEditing(false);
+    setJobIdToEdit(null);
+    setIsAddressSelected(false);
   };
 
   async function handleAddJob(e) {
     e.preventDefault();
-    if (!newName || !assignedTo || !streetAddress)
-      return alert("Please complete all required fields");
-
+    if (!isAddressSelected && !isEditing) return alert("Please select a valid address from the dropdown list.");
+    if (!newName || !assignedTo) return alert("Please fill out all required fields.");
+    
+    setIsSubmitting(true);
     const newJobData = {
       name: newName,
-      status: newStatus || "Pending",
-      dueDate: newDueDate,
+      status: newStatus,
+      dueDate: newDueDate ? newDueDate.toISOString().split('T')[0] : "",
       assignedTo,
-      streetAddress: streetAddress,
+      streetAddress,
       address: streetAddress,
       completed: false,
       notes: "",
       company,
-      createdAt: new Date(),
+      createdAt: isEditing ? jobs.find(j => j.id === jobIdToEdit).createdAt : new Date(),
     };
 
     try {
-      setLoading(true);
-
       if (isEditing && jobIdToEdit) {
-        const jobDocRef = doc(db, "jobs", jobIdToEdit);
-        await setDoc(jobDocRef, newJobData, { merge: true });
-        setJobs((prevJobs) =>
-          prevJobs.map((job) =>
-            job.id === jobIdToEdit ? { id: job.id, ...newJobData } : job
-          )
-        );
+        await setDoc(doc(db, "jobs", jobIdToEdit), newJobData, { merge: true });
+        setJobs(prev => prev.map(j => j.id === jobIdToEdit ? { id: j.id, ...newJobData } : j));
       } else {
         const docRef = await addDoc(collection(db, "jobs"), newJobData);
-        setJobs((prevJobs) => [{ id: docRef.id, ...newJobData }, ...prevJobs]);
+        setJobs(prev => [{ id: docRef.id, ...newJobData }, ...prev]);
       }
-
-      setNewName("");
-      setNewStatus("");
-      setNewDueDate("");
-      setAssignedTo("");
-      setStreetAddress("");
-      setIsEditing(false);
-      setJobIdToEdit(null);
-
-    } catch (error) {
-      console.error("Error adding/updating job:", error);
-    } finally {
-      setLoading(false);
-    }
+      resetForm();
+    } catch (error) { console.error("Error saving job:", error); } 
+    finally { setIsSubmitting(false); }
   }
 
   const handleDeleteJob = async (jobId) => {
-    try {
-      await deleteDoc(doc(db, "jobs", jobId));
-      setJobs((prevJobs) => prevJobs.filter((job) => job.id !== jobId));
-    } catch (error) {
-      console.error("Error deleting document: ", error);
+    if (window.confirm("Are you sure you want to delete this job?")) {
+      try {
+        await deleteDoc(doc(db, "jobs", jobId));
+        setJobs(prev => prev.filter((job) => job.id !== jobId));
+      } catch (error) { console.error("Error deleting document: ", error); }
     }
   };
 
   const handleEditJob = (job) => {
     setNewName(job.name);
     setNewStatus(job.status);
-    setNewDueDate(job.dueDate || "");
+    setNewDueDate(job.dueDate ? new Date(job.dueDate) : null);
     setAssignedTo(job.assignedTo);
     setStreetAddress(job.streetAddress);
     setIsEditing(true);
     setJobIdToEdit(job.id);
+    setIsAddressSelected(true);
     setMenuOpen(null);
-    window.scrollTo(0, 0);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-
-  const toggleMenu = (jobId, event) => {
-    if (menuOpen === jobId) {
-      setMenuOpen(null);
-      return;
-    }
-
-    const rect = event.currentTarget.getBoundingClientRect();
-    const menuHeight = 80;
-    const spaceBelow = window.innerHeight - rect.bottom;
-
-    const style = {
-      position: "absolute",
-      right: 0,
-      backgroundColor: "white",
-      border: "1px solid #ccc",
-      borderRadius: "4px",
-      padding: "5px 0",
-      zIndex: 100,
-      minWidth: "150px",
-    };
-
-    if (spaceBelow < menuHeight) {
-      style.bottom = "100%";
-    } else {
-      style.top = "100%";
-    }
-
-    setMenuStyle(style);
-    setMenuOpen(jobId);
-  };
-
-  const getMapLink = (address) => {
-    if (!address) return null;
-    const encodedAddress = encodeURIComponent(address);
-    return `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
-  };
-
-  // Styles
-  const pageStyle = { minHeight: "100vh", backgroundColor: colors.platinum, color: colors.richBlack, fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" };
-  const containerStyle = { maxWidth: "900px", margin: "2rem auto", padding: "2rem", backgroundColor: "rgba(255, 255, 255, 0.8)", borderRadius: "12px" };
-  const headerStyle = { fontSize: "2.2rem", fontWeight: "700", marginBottom: "1.5rem", color: colors.oxfordBlue };
-  const selectStyle = { width: "100%", padding: "0.75rem", border: `1px solid ${colors.silverLakeBlue}`, borderRadius: "8px", backgroundColor: "white", color: colors.richBlack, fontSize: "1rem", outline: "none" };
-  const buttonStyle = { backgroundColor: colors.yinmnBlue, color: "white", padding: "0.75rem 1.5rem", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "1rem", fontWeight: "600", marginTop: "1rem", transition: "backgroundColor 0.2s ease" };
-  const savedQuotesTableStyle = { width: "100%", borderCollapse: "collapse", marginTop: "2rem", borderRadius: "8px", overflow: "hidden" };
-  const savedQuotesThStyle = { backgroundColor: colors.oxfordBlue, color: "white", fontWeight: "600", padding: "0.75rem", textAlign: "left", fontSize: "0.8rem" };
-  const savedQuotesTdStyle = { padding: "0.75rem", borderBottom: `1px solid ${colors.silverLakeBlue}`, fontSize: "0.85rem", position: 'relative' };
-  const inputTitle = { width: "100%", padding: "0.6rem", border: `1px solid ${colors.silverLakeBlue}`, borderRadius: "6px", backgroundColor: "white", color: colors.richBlack, fontSize: "0.9rem", outline: "none" };
-  const kebabButton = { background: "none", border: "none", padding: "10px", cursor: "pointer" };
-  const menuItemStyle = { padding: "8px 15px", textAlign: "left", background: "none", border: "none", display: "block", width: "100%", cursor: "pointer" };
-  const autocompleteContainerStyle = { position: 'relative', width: '100%' };
-  const autocompleteListStyle = { position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "white", border: "1px solid #ccc", borderRadius: "4px", padding: 0, margin: 0, zIndex: 99, listStyleType: "none", maxHeight: '200px', overflowY: 'auto' };
-  const autocompleteItemStyle = { padding: "8px 15px", textAlign: "left", cursor: "pointer" };
-  const labelStyle = { display: "block", marginBottom: "0.5rem", color: colors.oxfordBlue, fontWeight: "500", fontSize: "0.9rem" };
 
   return (
-    <div style={pageStyle}>
-      <Navbar onLogout={() => navigate("/login")} />
-      <div style={containerStyle}>
-        <div className="flex justify-between items-center mb-6">
-          <h1 style={headerStyle}>Job Management</h1>
-          <button onClick={() => navigate("/client")} style={{...buttonStyle, marginTop: 0}}>
-            ← Back to Homepage
-          </button>
-        </div>
+    <div className="p-6 md:p-8 font-sans">
+      <header className="mb-8">
+        <h1 className="text-3xl font-extrabold text-brand-dark">Job Management</h1>
+        <p className="text-gray-500 mt-1">Add, view, and manage all ongoing and completed jobs.</p>
+      </header>
 
-        <form onSubmit={handleAddJob}>
-          <label htmlFor="jobName" style={labelStyle}>Job Name:</label>
-          <input type="text" id="jobName" style={inputTitle} value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Enter job name" required />
+      <div className="bg-white p-6 rounded-xl shadow-md mb-8 border-t-4 border-brand-accent">
+        <h2 className="text-xl font-bold text-brand-dark mb-4">{isEditing ? 'Edit Job' : 'Add a New Job'}</h2>
+        <form onSubmit={handleAddJob} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="jobName" className="block text-sm font-medium text-gray-700 mb-1">Job Name</label>
+              <input type="text" id="jobName" className="w-full p-2 border border-gray-300 rounded-md focus:ring-brand-accent focus:border-brand-accent" value={newName} onChange={(e) => setNewName(e.target.value)} required />
+            </div>
+            <div>
+              <label htmlFor="assignedTo" className="block text-sm font-medium text-gray-700 mb-1">Assigned To</label>
+              <input type="text" id="assignedTo" className="w-full p-2 border border-gray-300 rounded-md focus:ring-brand-accent focus:border-brand-accent" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} required />
+            </div>
+          </div>
 
-          <label htmlFor="assignedTo" style={{...labelStyle, marginTop: '1rem'}}>Assigned To:</label>
-          <input type="text" id="assignedTo" style={inputTitle} value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} placeholder="Assign to" required />
-          
-          <div style={autocompleteContainerStyle}>
-            <label htmlFor="streetAddress" style={{...labelStyle, marginTop: '1rem'}}>Street Address:</label>
-            <input
-              type="text"
-              id="streetAddress"
-              style={inputTitle}
-              value={streetAddress}
-              onChange={handleStreetAddressChange}
-              placeholder="Start typing a street address..."
-              ref={streetAddressInputRef}
-              required
-              autoComplete="off"
-            />
+          <div className="relative">
+            <label htmlFor="streetAddress" className="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
+            <input type="text" id="streetAddress" className="w-full p-2 border border-gray-300 rounded-md focus:ring-brand-accent focus:border-brand-accent" value={streetAddress} onChange={handleStreetAddressChange} placeholder="Start typing a street address..." required autoComplete="off" />
             {autocompletePredictions.length > 0 && (
-              <ul style={autocompleteListStyle}>
-                {autocompletePredictions.map((prediction) => (
-                  <li
-                    key={prediction.place_id}
-                    style={autocompleteItemStyle}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0f0f0'}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}
-                    onClick={() => handlePredictionSelect(prediction)}
-                  >
-                    {prediction.description}
+              <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 max-h-60 overflow-y-auto shadow-lg">
+                {autocompletePredictions.map((p) => (
+                  <li key={p.place_id} className="p-2 hover:bg-brand-accent hover:text-black cursor-pointer" onClick={() => handlePredictionSelect(p)}>
+                    {p.description}
                   </li>
                 ))}
               </ul>
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-            
-            <div style={{ flex: 1 }}>
-              <label htmlFor="dueDate" style={labelStyle}>Due Date:</label>
-              <DatePicker
-                id="dueDate"
-                selected={newDueDate ? new Date(newDueDate) : null}
-                onChange={(date) => {
-                  if (date) {
-                    const userTimezoneOffset = date.getTimezoneOffset() * 60000;
-                    const adjustedDate = new Date(date.getTime() - userTimezoneOffset);
-                    setNewDueDate(adjustedDate.toISOString().split('T')[0]);
-                  } else {
-                    setNewDueDate("");
-                  }
-                }}
-                dateFormat="dd.MM.yyyy"
-                placeholderText="Select or type a date"
-                wrapperClassName="w-full"
-                customInput={<input style={inputTitle} />}
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+              <DatePicker id="dueDate" selected={newDueDate} onChange={(date) => setNewDueDate(date)} dateFormat="dd/MM/yyyy" className="w-full p-2 border border-gray-300 rounded-md" placeholderText="Select a date" />
             </div>
-
-            <div style={{ flex: 1 }}>
-              <label htmlFor="status" style={labelStyle}>Status:</label>
-              <select id="status" style={selectStyle} value={newStatus} onChange={(e) => setNewStatus(e.target.value)}>
-                <option value="">Select Status</option>
-                <option value="Pending">Pending</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Completed">Completed</option>
+            <div>
+              <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select id="status" className="w-full p-2 border border-gray-300 rounded-md bg-white" value={newStatus} onChange={(e) => setNewStatus(e.target.value)}>
+                <option>Pending</option>
+                <option>In Progress</option>
+                <option>Completed</option>
               </select>
             </div>
           </div>
-
-          <button style={buttonStyle} type="submit">{isEditing ? "Update Job" : "Add Job"}</button>
-        </form>
-
-        {loading ? (
-          <p>Loading jobs...</p>
-        ) : jobs.length === 0 ? (
-          <p>No jobs found for this client.</p>
-        ) : (
-          <div className="overflow-x-auto mt-8">
-            <table style={savedQuotesTableStyle}>
-              <thead>
-                <tr>
-                  <th style={savedQuotesThStyle} onClick={() => toggleSort("name")}>Job Name</th>
-                  <th style={savedQuotesThStyle} onClick={() => toggleSort("status")}>Status</th>
-                  <th style={savedQuotesThStyle} onClick={() => toggleSort("assignedTo")}>Assigned</th>
-                  <th style={savedQuotesThStyle}>Address</th>
-                  <th style={savedQuotesThStyle} onClick={() => toggleSort("dueDate")}>Due Date</th>
-                  <th style={savedQuotesThStyle}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedJobs.map((job) => (
-                  <tr key={job.id}>
-                    <td style={savedQuotesTdStyle}>{job.name}</td>
-                    <td style={savedQuotesTdStyle}>{job.status}</td>
-                    <td style={savedQuotesTdStyle}>{job.assignedTo}</td>
-                    <td style={savedQuotesTdStyle}>
-                      {job.address ? (
-                        <a href={getMapLink(job.address)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{job.address}</a>
-                      ) : ("No Address")}
-                    </td>
-                    <td style={savedQuotesTdStyle}>{formatDate(job.dueDate)}</td>
-                    <td style={savedQuotesTdStyle}>
-                      <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <div style={{position: 'relative'}}>
-                          <button style={kebabButton} onClick={(e) => toggleMenu(job.id, e)}>
-                            <FontAwesomeIcon icon={faEllipsisV} />
-                          </button>
-                          {menuOpen === job.id && (
-                            <div style={menuStyle} ref={menuRef}>
-                              <button style={{...menuItemStyle, width: '100%'}} onClick={() => handleEditJob(job)}>Edit</button>
-                              <button style={{...menuItemStyle, width: '100%'}} onClick={() => handleDeleteJob(job.id)}>Delete</button>
-                            </div>
-                          )}
-                        </div>
-                        <button onClick={() => navigate(`/client/jobs/${job.id}`)} className="text-blue-600 hover:underline ml-2">View</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          
+          <div className="flex items-center gap-4">
+            <button type="submit" disabled={isSubmitting} className="bg-brand-dark text-white font-bold py-2 px-6 rounded-md hover:bg-opacity-80 transition-colors disabled:bg-gray-400">
+              {isSubmitting ? 'Saving...' : (isEditing ? 'Update Job' : 'Add Job')}
+            </button>
+            {isEditing && (
+              <button type="button" onClick={resetForm} className="text-gray-600 hover:text-black">
+                Cancel
+              </button>
+            )}
           </div>
+        </form>
+      </div>
+
+      <div className="bg-white p-6 rounded-xl shadow-md overflow-x-auto">
+        <h2 className="text-xl font-bold text-brand-dark mb-4">Current Jobs</h2>
+        {loading ? ( <p>Loading...</p> ) : (
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    <button onClick={() => toggleSort('name')} className="flex items-center gap-2">
+                        Job Name
+                        {sortKey === 'name' ? (sortOrder === 'asc' ? <FontAwesomeIcon icon={faSortUp} /> : <FontAwesomeIcon icon={faSortDown} />) : <FontAwesomeIcon icon={faSort} className="text-gray-300" />}
+                    </button>
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    <button onClick={() => toggleSort('status')} className="flex items-center gap-2">
+                        Status
+                        {sortKey === 'status' ? (sortOrder === 'asc' ? <FontAwesomeIcon icon={faSortUp} /> : <FontAwesomeIcon icon={faSortDown} />) : <FontAwesomeIcon icon={faSort} className="text-gray-300" />}
+                    </button>
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    <button onClick={() => toggleSort('assignedTo')} className="flex items-center gap-2">
+                        Assigned To
+                        {sortKey === 'assignedTo' ? (sortOrder === 'asc' ? <FontAwesomeIcon icon={faSortUp} /> : <FontAwesomeIcon icon={faSortDown} />) : <FontAwesomeIcon icon={faSort} className="text-gray-300" />}
+                    </button>
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    Address
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    <button onClick={() => toggleSort('dueDate')} className="flex items-center gap-2">
+                        Due Date
+                        {sortKey === 'dueDate' ? (sortOrder === 'asc' ? <FontAwesomeIcon icon={faSortUp} /> : <FontAwesomeIcon icon={faSortDown} />) : <FontAwesomeIcon icon={faSort} className="text-gray-300" />}
+                    </button>
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {jobs.map((job) => (
+                <tr key={job.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{job.name}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(job.status)}`}>
+                          {job.status}
+                      </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{job.assignedTo}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 max-w-xs truncate">{job.address}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{formatDate(job.dueDate)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                    <button onClick={() => navigate(`/client/jobs/${job.id}`)} className="text-brand-dark hover:text-brand-accent mr-4">View/Edit</button>
+                    <button onClick={() => handleDeleteJob(job.id)} className="text-red-600 hover:text-red-900">Delete</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
     </div>

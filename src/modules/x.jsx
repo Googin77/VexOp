@@ -1,454 +1,701 @@
-import React, {
-  useEffect,
-  useState,
-  useContext,
-  useRef,
-} from "react";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  addDoc,
-  orderBy,
-  deleteDoc,
-  doc,
-  setDoc,
-} from "firebase/firestore";
-// --- NEW: Import 'auth' from your firebase config to get the user token ---
-import { db, auth } from "../firebase"; 
-import { getIdToken } from "firebase/auth";
+import QuotingCalculator from "./QuoteCalculatorModule"
+
+QuotingCalculator
+
+
+// QuotingCalculator Component
+import React, { useState, useEffect, useRef, useContext } from "react";
+import { collection, query, where, getDocs, addDoc, orderBy, deleteDoc, doc, setDoc } from "firebase/firestore";
+import { db } from "../firebase";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
-import { AuthContext } from "../AuthContext";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faEllipsisV } from "@fortawesome/free-solid-svg-icons";
-
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
+import { AuthContext } from '../AuthContext';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faEllipsisV } from '@fortawesome/free-solid-svg-icons';
 
 const colors = {
-  richBlack: "#343434",
-  oxfordBlue: "#1b263b",
-  yinmnBlue: "#415a77",
-  silverLakeBlue: "#778da9",
-  platinum: "#d9d9d9",
+    richBlack: "#343434",
+    oxfordBlue: "#1b263b",
+    yinmnBlue: "#415a77",
+    silverLakeBlue: "#778da9a",
+    platinum: "#d9d9d9",
 };
 
-const formatDate = (dateString) => {
-  if (!dateString) return "N/A";
-  try {
-    const date = new Date(dateString);
-    const userTimezoneOffset = date.getTimezoneOffset() * 60000;
-    const adjustedDate = new Date(date.getTime() + userTimezoneOffset);
-    const day = String(adjustedDate.getDate()).padStart(2, '0');
-    const month = String(adjustedDate.getMonth() + 1).padStart(2, '0');
-    const year = String(adjustedDate.getFullYear()).slice(-2);
-    return `${day}.${month}.${year}`;
-  } catch (error) {
-    return "Invalid Date";
-  }
-};
+const partsList = [
+    { isTitle: true, name: "Stair", section: "stair" },
+    { name: "SUPPLY ONLY", id: "supplyonly", section: "stair" },
+    { name: "PRIVATE", id: "private", section: "stair" },
+    { name: "BUILDER", id: "builder", section: "stair" },
+    { name: "STAIR COST", id: "staircost", section: "stair" },
+    { name: "EXTRA WIDTH", id: "extrawidth", section: "stair" },
+    { name: "OPEN RISER", id: "openriser", section: "stair" },
+    { name: "CUT STRINGER", id: "cutstringer", section: "stair" },
+    { name: "QUARTER LANDING", id: "quarterlanding", section: "stair" },
+    { name: "FULL LANDING", id: "fulllanding", section: "stair" },
+    { name: "2 WINDER", id: "2winder", section: "stair" },
+    { name: "3 WINDER", id: "3winder", section: "stair" },
+    { name: "LANDING/WINDER POST", id: "landingpost", section: "stair" },
+    { name: "D-STEP", id: "dstep", section: "stair" },
+    { isTitle: true, name: "Balustrade", section: "balustrade" },
+    { name: "NEWEL POST", id: "newelpost", section: "balustrade" },
+    { name: "TURNED BALUSTRADE", id: "turnedbal", section: "balustrade"},
+    { name: "BIG POST", id: "bigpost", section: "balustrade" },
+    { name: "TURNED NEWEL", id: "turnednewel", section: "balustrade" },
+    { name: "BALUSTRADE", id: "balustrade", section: "balustrade" },
+    { name: "SCREEN", id: "screen", section: "balustrade" },
+    { name: "HANDRAIL ON BRACKET", id: "handrailbracket", section: "balustrade" },
+    { name: "BRACKET", id: "bracket", section: "balustrade" },
+    { name: "CONTINUOUS RAIL MITRES", id: "railmitres", section: "balustrade" },
+    { name: "CPOST CAPS/BALL TOPS", id: "balltops", section: "balustrade" },
+    { name: "SAWTOOTH", id: "sawtooth", section: "balustrade" },
+    { name: "DIMINISH", id: "diminish", section: "balustrade" },
+    { isTitle: true, name: "Extras", section: "extras" },
+    { name: "DISPOSE", id: "dispose", section: "extras" },
+    { name: "EXT 3 RAIL HARDWOOD", id:"ext3", section: "extras"},
+    { name: "DOWELL", id: "dowell", section: "extras"},
+    { name: "DOWELL THREE RAIL", id: "dowell3", section: "extras"},
+    { name: "EXT 2 RAIL PINE", id: "ext2", section: "extras"},
+    { name: "FOOTINGS", id: "footings", section: "extras"},
+    { name: "POST BALLS/LASER CUT CENTRES", id: "balls", section: "extras"},
 
-// --- IMPORTANT: Replace this with your actual Cloud Function Trigger URL ---
-const CLOUD_FUNCTION_URL = 'https://places-api-proxy-secure-927846386659.australia-southeast1.run.app';
+];
 
+function QuotingCalculator() {
+    const [productType, setProductType] = useState("");
+    const [prices, setPrices] = useState({});
+    const [quantities, setQuantities] = useState({});
+    const [gstRate, setGSTRate] = useState(0.10);
+    const [extraCostsQuantity, setExtraCostsQuantity] = useState("");
+    const [extraCostsPrice, setExtraCostsPrice] = useState("");
+    const [quoteTitle, setQuoteTitle] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [savedQuotes, setSavedQuotes] = useState([]);
+    const navigate = useNavigate();
+    const { currentUser } = useContext(AuthContext);
+    const [menuOpen, setMenuOpen] = useState(null);
+    const [isEditing, setIsEditing] = useState(false);
+    const [quoteIdToEdit, setQuoteIdToEdit] = useState(null);
+    const [quoteBeingEdited, setQuoteBeingEdited] = useState(null);
+    const menuRef = useRef(null);
+    const [filteredPartsList, setFilteredPartsList] = useState(partsList);
+    const productTypes = [
+        { value: "kwilaint", label: "Kwila Internal" },
+        { value: "kwilaext", label: "Kwila External" },
+        { value: "hardext", label: "Rough Sawn Hardwood" },
+        { value: "durian", label: "Durian" },
+        { value: "amoak", label: "American Oak" },
+        { value: "brushbox", label: "Brushbox" },
+        { value: "gum", label: "Spotted Gum" },
+        { value: "tas", label: "Vic Ash" },
+        { value: "pine", label: "Pine" },
+        { value: "carpet", label: "Cover Grade" },
+        { value: "blackbutt", label: "Blackbutt" },
+    ];
 
-export default function JobsModule({ company }) {
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [newName, setNewName] = useState("");
-  const [newStatus, setNewStatus] = useState("");
-  const [newDueDate, setNewDueDate] = useState("");
-  const [assignedTo, setAssignedTo] = useState("");
-  const [streetAddress, setStreetAddress] = useState("");
-  const [sortKey, setSortKey] = useState("name");
-  const [sortOrder, setSortOrder] = useState("asc");
-  const navigate = useNavigate();
-  const { currentUser } = useContext(AuthContext);
-  const [menuOpen, setMenuOpen] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [jobIdToEdit, setJobIdToEdit] = useState(null);
-  
-  const streetAddressInputRef = useRef(null);
-  const [autocompletePredictions, setAutocompletePredictions] = useState([]);
-  const menuRef = useRef(null);
-  const [menuStyle, setMenuStyle] = useState({});
+    useEffect(() => {
+        const fetchPrices = async () => {
+            if (!productType) {
+                setFilteredPartsList(partsList); //reset the parts list
+                return;
+            }
+            setLoading(true);
+            try {
+                const q = query(
+                    collection(db, "productprices"),
+                    where("name", "==", productType)
+                );
+                const querySnapshot = await getDocs(q);
 
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setMenuOpen(null);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+                if (!querySnapshot.empty) {
+                    const data = querySnapshot.docs[0].data();
+                    setPrices(data);
+                    // Filter partsList based on the keys in the data object
+                    const availablePartIds = Object.keys(data);
+                    const filteredParts = partsList.filter(part => part.isTitle || availablePartIds.includes(part.id));
+                    setFilteredPartsList(filteredParts);
+                } else {
+                    console.log("No document found for product type:", productType);
+                    setPrices({});
+                    setFilteredPartsList(partsList); // Optionally reset or handle no data case
+                }
+            } catch (error) {
+                console.error("Error fetching prices:", error);
+                setPrices({});
+                setFilteredPartsList(partsList); // Optionally reset or handle error case
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchPrices();
+    }, [productType]);
+
+    useEffect(() => {
+        const fetchSavedQuotes = async () => {
+            if (!currentUser?.company) return;
+
+            const q = query(
+                collection(db, "quotes"),
+                where("company", "==", currentUser.company),
+                orderBy("createdAt", "desc")
+            );
+
+            try {
+                const querySnapshot = await getDocs(q);
+                const quotesData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                const filteredQuotes = quoteBeingEdited
+                    ? quotesData.filter((quote) => quote.id !== quoteBeingEdited.id)
+                    : quotesData;
+                setSavedQuotes(filteredQuotes);
+            } catch (error) {
+                console.error("Error fetching saved quotes:", error);
+            }
+        };
+
+        fetchSavedQuotes();
+    }, [currentUser?.company, quoteBeingEdited]);
+
+    const handleProductTypeChange = (e) => {
+        setProductType(e.target.value);
+        setQuantities({});
     };
-  }, [menuRef]);
 
-  useEffect(() => {
-    async function fetchJobs() {
-      if (!company) {
-        setLoading(false);
-        return;
-      }
-      try {
-        setLoading(true);
-        const q = query(
-          collection(db, "jobs"),
-          where("company", "==", company),
-          orderBy("createdAt", "desc")
-        );
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
+    const handleQuantityChange = (partId, value) => {
+        let validatedValue = value;
+        const parsedValue = parseInt(value, 10);
+
+        if (value !== "" && (isNaN(parsedValue) || parsedValue < 0)) {
+            validatedValue = "";
+        }
+
+        setQuantities((prevQuantities) => ({
+            ...prevQuantities,
+            [partId]: validatedValue,
         }));
-        setJobs(data);
-      } catch (err) {
-        console.error("Error fetching jobs:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchJobs();
-  }, [company]);
-
-  const sortedJobs = [...jobs].sort((a, b) => {
-    const aVal = a[sortKey]?.toLowerCase?.() || a[sortKey] || "";
-    const bVal = b[sortKey]?.toLowerCase?.() || b[sortKey] || "";
-    return sortOrder === "asc" ? (aVal > bVal ? 1 : -1) : aVal < bVal ? 1 : -1;
-  });
-
-  const toggleSort = (key) => {
-    if (key === sortKey) {
-      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortOrder("asc");
-    }
-  };
-
-  // --- NEW: Helper function for making authenticated API calls ---
-  const getAuthenticatedFetch = async (url) => {
-    const user = auth.currentUser;
-    if (!user) {
-        console.error("No user is signed in to make an authenticated request.");
-        // You could trigger a re-login flow here if necessary
-        return null;
-    }
-    const token = await getIdToken(user);
-    
-    return fetch(url, {
-        headers: {
-            'Authorization': `Bearer ${token}`
-        }
-    });
-  };
-
-  const handleStreetAddressChange = async (e) => {
-    const value = e.target.value;
-    setStreetAddress(value);
-
-    if (value.length > 3) {
-      try {
-        const response = await getAuthenticatedFetch(`${CLOUD_FUNCTION_URL}?endpoint=autocomplete&input=${encodeURIComponent(value)}`);
-        if (!response) return; // Stop if user is not logged in
-        const data = await response.json();
-        if (data.predictions) {
-          setAutocompletePredictions(data.predictions);
-        } else {
-          setAutocompletePredictions([]);
-        }
-      } catch (error) {
-        console.error("Error fetching address predictions:", error);
-        setAutocompletePredictions([]);
-      }
-    } else {
-      setAutocompletePredictions([]);
-    }
-  };
-  
-  const handlePredictionSelect = async (prediction) => {
-    try {
-      const response = await getAuthenticatedFetch(`${CLOUD_FUNCTION_URL}?endpoint=details&place_id=${prediction.place_id}`);
-      if (!response) return; // Stop if user is not logged in
-      const data = await response.json();
-      if (data.result && data.result.formatted_address) {
-        setStreetAddress(data.result.formatted_address);
-      } else {
-        setStreetAddress(prediction.description);
-      }
-      setAutocompletePredictions([]);
-    } catch (error) {
-      console.error("Error fetching place details:", error);
-      setStreetAddress(prediction.description);
-      setAutocompletePredictions([]);
-    }
-  };
-
-  async function handleAddJob(e) {
-    e.preventDefault();
-    if (!newName || !assignedTo || !streetAddress)
-      return alert("Please complete all required fields");
-
-    const newJobData = {
-      name: newName,
-      status: newStatus || "Pending",
-      dueDate: newDueDate,
-      assignedTo,
-      streetAddress: streetAddress,
-      address: streetAddress,
-      completed: false,
-      notes: "",
-      company,
-      createdAt: new Date(),
     };
 
-    try {
-      setLoading(true);
+    const calculateSectionTotal = (section) => {
+        let sectionTotal = 0;
+        const sectionItems = filteredPartsList.filter(part => part.section === section && !part.isTitle);
 
-      if (isEditing && jobIdToEdit) {
-        const jobDocRef = doc(db, "jobs", jobIdToEdit);
-        await setDoc(jobDocRef, newJobData, { merge: true });
-        setJobs((prevJobs) =>
-          prevJobs.map((job) =>
-            job.id === jobIdToEdit ? { id: job.id, ...newJobData } : job
-          )
-        );
-      } else {
-        const docRef = await addDoc(collection(db, "jobs"), newJobData);
-        setJobs((prevJobs) => [{ id: docRef.id, ...newJobData }, ...prevJobs]);
-      }
+        for (const item of sectionItems) {
+            const quantity = quantities[item.id] === "" ? 0 : parseInt(quantities[item.id], 10) || 0;
+            const price = prices[item.id] || 0;
+            sectionTotal += quantity * price;
+        }
 
-      setNewName("");
-      setNewStatus("");
-      setNewDueDate("");
-      setAssignedTo("");
-      setStreetAddress("");
-      setIsEditing(false);
-      setJobIdToEdit(null);
+        if (section === "extras") {
+            sectionTotal += (extraCostsQuantity === "" ? 0 : parseInt(extraCostsQuantity, 10)) * (extraCostsPrice === "" ? 0 : parseFloat(extraCostsPrice));
+        }
 
-    } catch (error) {
-      console.error("Error adding/updating job:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const handleDeleteJob = async (jobId) => {
-    try {
-      await deleteDoc(doc(db, "jobs", jobId));
-      setJobs((prevJobs) => prevJobs.filter((job) => job.id !== jobId));
-    } catch (error) {
-      console.error("Error deleting document: ", error);
-    }
-  };
-
-  const handleEditJob = (job) => {
-    setNewName(job.name);
-    setNewStatus(job.status);
-    setNewDueDate(job.dueDate || "");
-    setAssignedTo(job.assignedTo);
-    setStreetAddress(job.streetAddress);
-    setIsEditing(true);
-    setJobIdToEdit(job.id);
-    setMenuOpen(null);
-    window.scrollTo(0, 0);
-  };
-
-  const toggleMenu = (jobId, event) => {
-    if (menuOpen === jobId) {
-      setMenuOpen(null);
-      return;
-    }
-
-    const rect = event.currentTarget.getBoundingClientRect();
-    const menuHeight = 80;
-    const spaceBelow = window.innerHeight - rect.bottom;
-
-    const style = {
-      position: "absolute",
-      right: 0,
-      backgroundColor: "white",
-      border: "1px solid #ccc",
-      borderRadius: "4px",
-      padding: "5px 0",
-      zIndex: 100,
-      minWidth: "150px",
+        return sectionTotal;
     };
 
-    if (spaceBelow < menuHeight) {
-      style.bottom = "100%";
-    } else {
-      style.top = "100%";
-    }
+    const calculateSubtotal = () => {
+        let subtotal = 0;
+        for (const partId in quantities) {
+            if (quantities.hasOwnProperty(partId) && prices.hasOwnProperty(partId)) {
+                const quantity = quantities[partId] === "" ? 0 : parseInt(quantities[partId], 10);
+                subtotal += quantity * (prices[partId] || 0);
+            }
+        }
+        const extraCostsSubtotal = (extraCostsQuantity === "" ? 0 : parseInt(extraCostsQuantity, 10)) * (extraCostsPrice === "" ? 0 : parseFloat(extraCostsPrice));
+        subtotal += extraCostsSubtotal;
+        return subtotal;
+    };
 
-    setMenuStyle(style);
-    setMenuOpen(jobId);
-  };
+    const subtotal = calculateSubtotal();
+    const gst = subtotal * gstRate;
+    const total = subtotal + gst;
 
-  const getMapLink = (address) => {
-    if (!address) return null;
-    const encodedAddress = encodeURIComponent(address);
-    return `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
-  };
+    const handleSubmit = async () => {
+        try {
+            const stairTotal = calculateSectionTotal("stair");
+            const balustradeTotal = calculateSectionTotal("balustrade");
+            const extrasTotal = calculateSectionTotal("extras");
 
-  // Styles
-  const pageStyle = { minHeight: "100vh", backgroundColor: colors.platinum, color: colors.richBlack, fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" };
-  const containerStyle = { maxWidth: "900px", margin: "2rem auto", padding: "2rem", backgroundColor: "rgba(255, 255, 255, 0.8)", borderRadius: "12px" };
-  const headerStyle = { fontSize: "2.2rem", fontWeight: "700", marginBottom: "1.5rem", color: colors.oxfordBlue };
-  const selectStyle = { width: "100%", padding: "0.75rem", border: `1px solid ${colors.silverLakeBlue}`, borderRadius: "8px", backgroundColor: "white", color: colors.richBlack, fontSize: "1rem", outline: "none" };
-  const buttonStyle = { backgroundColor: colors.yinmnBlue, color: "white", padding: "0.75rem 1.5rem", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "1rem", fontWeight: "600", marginTop: "1rem", transition: "backgroundColor 0.2s ease" };
-  const savedQuotesTableStyle = { width: "100%", borderCollapse: "collapse", marginTop: "2rem", borderRadius: "8px", overflow: "hidden" };
-  const savedQuotesThStyle = { backgroundColor: colors.oxfordBlue, color: "white", fontWeight: "600", padding: "0.75rem", textAlign: "left", fontSize: "0.8rem" };
-  const savedQuotesTdStyle = { padding: "0.75rem", borderBottom: `1px solid ${colors.silverLakeBlue}`, fontSize: "0.85rem", position: 'relative' };
-  const inputTitle = { width: "100%", padding: "0.6rem", border: `1px solid ${colors.silverLakeBlue}`, borderRadius: "6px", backgroundColor: "white", color: colors.richBlack, fontSize: "0.9rem", outline: "none" };
-  const kebabButton = { background: "none", border: "none", padding: "10px", cursor: "pointer" };
-  const menuItemStyle = { padding: "8px 15px", textAlign: "left", background: "none", border: "none", display: "block", width: "100%", cursor: "pointer" };
-  const autocompleteContainerStyle = { position: 'relative', width: '100%' };
-  const autocompleteListStyle = { position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "white", border: "1px solid #ccc", borderRadius: "4px", padding: 0, margin: 0, zIndex: 99, listStyleType: "none", maxHeight: '200px', overflowY: 'auto' };
-  const autocompleteItemStyle = { padding: "8px 15px", textAlign: "left", cursor: "pointer" };
-  const labelStyle = { display: "block", marginBottom: "0.5rem", color: colors.oxfordBlue, fontWeight: "500", fontSize: "0.9rem" };
+            const quoteData = {
+                company: currentUser?.company,
+                productType: productType,
+                stairTotal,
+                balustradeTotal,
+                extrasTotal,
+                quoteTitle,
+                total,
+                createdAt: new Date(),
+                quantities,
+                extraCostsQuantity,
+                extraCostsPrice,
+            };
 
-  return (
-    <div style={pageStyle}>
-      <Navbar onLogout={() => navigate("/login")} />
-      <div style={containerStyle}>
-        <div className="flex justify-between items-center mb-6">
-          <h1 style={headerStyle}>Job Management</h1>
-          <button onClick={() => navigate("/client")} style={{...buttonStyle, marginTop: 0}}>
-            ← Back to Homepage
-          </button>
-        </div>
+            if (isEditing && quoteIdToEdit) {
+                // Update in Firestore
+                const quoteDocRef = doc(db, "quotes", quoteIdToEdit);
+                await setDoc(quoteDocRef, quoteData, { merge: true });
 
-        <form onSubmit={handleAddJob}>
-          <label htmlFor="jobName" style={labelStyle}>Job Name:</label>
-          <input type="text" id="jobName" style={inputTitle} value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Enter job name" required />
+                // Update in local state
+                setSavedQuotes(prevQuotes =>
+                    prevQuotes.map(q => (q.id === quoteIdToEdit ? { id: q.id, ...quoteData } : q))
+                );
+            } else {
+                // Save new in Firestore
+                const docRef = await addDoc(collection(db, "quotes"), quoteData);
 
-          <label htmlFor="assignedTo" style={{...labelStyle, marginTop: '1rem'}}>Assigned To:</label>
-          <input type="text" id="assignedTo" style={inputTitle} value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} placeholder="Assign to" required />
-          
-          <div style={autocompleteContainerStyle}>
-            <label htmlFor="streetAddress" style={{...labelStyle, marginTop: '1rem'}}>Street Address:</label>
-            <input
-              type="text"
-              id="streetAddress"
-              style={inputTitle}
-              value={streetAddress}
-              onChange={handleStreetAddressChange}
-              placeholder="Start typing a street address..."
-              ref={streetAddressInputRef}
-              required
-              autoComplete="off"
-            />
-            {autocompletePredictions.length > 0 && (
-              <ul style={autocompleteListStyle}>
-                {autocompletePredictions.map((prediction) => (
-                  <li
-                    key={prediction.place_id}
-                    style={autocompleteItemStyle}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0f0f0'}
-                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}
-                    onClick={() => handlePredictionSelect(prediction)}
-                  >
-                    {prediction.description}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+                // Add to local state for immediate update
+                setSavedQuotes(prev => [
+                    { id: docRef.id, ...quoteData },
+                    ...prev
+                ]);
+            }
 
-          <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-            
-            <div style={{ flex: 1 }}>
-              <label htmlFor="dueDate" style={labelStyle}>Due Date:</label>
-              <DatePicker
-                id="dueDate"
-                selected={newDueDate ? new Date(newDueDate) : null}
-                onChange={(date) => {
-                  if (date) {
-                    const userTimezoneOffset = date.getTimezoneOffset() * 60000;
-                    const adjustedDate = new Date(date.getTime() - userTimezoneOffset);
-                    setNewDueDate(adjustedDate.toISOString().split('T')[0]);
-                  } else {
-                    setNewDueDate("");
-                  }
-                }}
-                dateFormat="dd.MM.yyyy"
-                placeholderText="Select or type a date"
-                wrapperClassName="w-full"
-                customInput={<input style={inputTitle} />}
-              />
-            </div>
+            // Reset form
+            setIsEditing(false);
+            setQuoteIdToEdit(null);
+            setQuoteTitle("");
+            setProductType("");
+            setQuantities({});
+            setExtraCostsQuantity("");
+            setExtraCostsPrice("");
+            setQuoteBeingEdited(null);
+        } catch (error) {
+            console.error("Error saving/updating document: ", error);
+        }
+    };
 
-            <div style={{ flex: 1 }}>
-              <label htmlFor="status" style={labelStyle}>Status:</label>
-              <select id="status" style={selectStyle} value={newStatus} onChange={(e) => setNewStatus(e.target.value)}>
-                <option value="">Select Status</option>
-                <option value="Pending">Pending</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Completed">Completed</option>
-              </select>
-            </div>
-          </div>
 
-          <button style={buttonStyle} type="submit">{isEditing ? "Update Job" : "Add Job"}</button>
-        </form>
+    const handleDeleteQuote = async (quoteId) => {
+        try {
+            await deleteDoc(doc(db, "quotes", quoteId));
+            setSavedQuotes(prevQuotes => prevQuotes.filter(quote => quote.id !== quoteId));
+            console.log("Quote deleted with ID: ", quoteId);
+        } catch (error) {
+            console.error("Error deleting document: ", error);
+        }
+    };
 
-        {loading ? (
-          <p>Loading jobs...</p>
-        ) : jobs.length === 0 ? (
-          <p>No jobs found for this client.</p>
-        ) : (
-          <div className="overflow-x-auto mt-8">
-            <table style={savedQuotesTableStyle}>
-              <thead>
-                <tr>
-                  <th style={savedQuotesThStyle} onClick={() => toggleSort("name")}>Job Name</th>
-                  <th style={savedQuotesThStyle} onClick={() => toggleSort("status")}>Status</th>
-                  <th style={savedQuotesThStyle} onClick={() => toggleSort("assignedTo")}>Assigned</th>
-                  <th style={savedQuotesThStyle}>Address</th>
-                  <th style={savedQuotesThStyle} onClick={() => toggleSort("dueDate")}>Due Date</th>
-                  <th style={savedQuotesThStyle}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedJobs.map((job) => (
-                  <tr key={job.id}>
-                    <td style={savedQuotesTdStyle}>{job.name}</td>
-                    <td style={savedQuotesTdStyle}>{job.status}</td>
-                    <td style={savedQuotesTdStyle}>{job.assignedTo}</td>
-                    <td style={savedQuotesTdStyle}>
-                      {job.address ? (
-                        <a href={getMapLink(job.address)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{job.address}</a>
-                      ) : ("No Address")}
-                    </td>
-                    <td style={savedQuotesTdStyle}>{formatDate(job.dueDate)}</td>
-                    <td style={savedQuotesTdStyle}>
-                      <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <div style={{position: 'relative'}}>
-                          <button style={kebabButton} onClick={(e) => toggleMenu(job.id, e)}>
-                            <FontAwesomeIcon icon={faEllipsisV} />
-                          </button>
-                          {menuOpen === job.id && (
-                            <div style={menuStyle} ref={menuRef}>
-                              <button style={{...menuItemStyle, width: '100%'}} onClick={() => handleEditJob(job)}>Edit</button>
-                              <button style={{...menuItemStyle, width: '100%'}} onClick={() => handleDeleteJob(job.id)}>Delete</button>
-                            </div>
-                          )}
+    const handleEditQuote = (quote) => {
+        setQuoteTitle(quote.quoteTitle);
+        setProductType(quote.productType);
+        setQuantities(quote.quantities || {});
+        setExtraCostsQuantity(quote.extraCostsQuantity || "");
+        setExtraCostsPrice(quote.extraCostsPrice || "");
+        setQuoteIdToEdit(quote.id);
+        setIsEditing(true);
+        setMenuOpen(null);
+        setQuoteBeingEdited(quote);
+    };
+
+    // Styles
+    const pageStyle = {
+        minHeight: "100vh",
+        backgroundColor: colors.platinum,
+        color: colors.richBlack,
+        fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    };
+
+    const containerStyle = {
+        maxWidth: "900px",
+        margin: "2rem auto",
+        padding: "2rem",
+        backgroundColor: "rgba(255, 255, 255, 0.8)",
+        borderRadius: "12px",
+        boxShadow: `0 4px 12px rgba(27, 38, 59, 0.15)`,
+    };
+
+    const headerStyle = {
+        fontSize: "2.2rem",
+        fontWeight: "700",
+        marginBottom: "1.5rem",
+        color: colors.oxfordBlue,
+        fontSize: "0.9rem",
+    };
+
+    const selectStyle = {
+        width: "100%",
+        padding: "0.75rem",
+        marginBottom: "1.5rem",
+        border: `1px solid ${colors.silverLakeBlue}`,
+        borderRadius: "8px",
+        backgroundColor: "white",
+        color: colors.richBlack,
+        fontSize: "1rem",
+        outline: "none",
+    };
+
+    const tableStyle = {
+        width: "100%",
+        borderCollapse: "collapse",
+        marginTop: "1rem",
+        boxShadow: `0 2px 6px rgba(27, 38, 59, 0.1)`,
+        borderRadius: "8px",
+        overflow: "hidden",
+    };
+
+    const thStyle = {
+        backgroundColor: colors.yinmnBlue,
+        color: "white",
+        fontWeight: "600",
+        padding: "1rem",
+        textAlign: "left",
+        fontSize: "0.9rem",
+    };
+
+    const tdStyle = {
+        padding: "1rem",
+        borderBottom: `1px solid ${colors.silverLakeBlue}`,
+        fontSize: "0.95rem",
+    };
+
+    const inputStyle = {
+        width: "100%",
+        padding: "0.6rem",
+        border: `1px solid ${colors.silverLakeBlue}`,
+        borderRadius: "6px",
+        backgroundColor: "white",
+        color: colors.richBlack,
+        fontSize: "0.9rem",
+        outline: "none",
+    };
+
+    const totalsStyle = {
+        marginTop: "2rem",
+        fontSize: "1.1rem",
+        color: colors.oxfordBlue,
+    };
+
+    const titleStyle = {
+        fontStyle: "italic",
+        fontWeight: "bold",
+        padding: "1rem",
+        textAlign: "left",
+        fontSize: "1rem",
+    };
+
+    const buttonStyle = {
+        backgroundColor: colors.yinmnBlue,
+        color: "white",
+        padding: "0.75rem 1.5rem",
+        borderRadius: "8px",
+        border: "none",
+        cursor: "pointer",
+        fontSize: "1rem",
+        fontWeight: "600",
+        marginTop: "1rem",
+        transition: "background-color 0.2s ease",
+        "&:hover": {
+            backgroundColor: colors.oxfordBlue,
+        },
+    };
+
+    const savedQuotesTableStyle = {
+        width: "100%",
+        borderCollapse: "collapse",
+        marginTop: "2rem",
+        boxShadow: `0 2px 6px rgba(27, 38, 59, 0.1)`,
+        borderRadius: "8px",
+        overflow: "hidden",
+    };
+
+    const savedQuotesThStyle = {
+        backgroundColor: colors.oxfordBlue,
+        color: "white",
+        fontWeight: "600",
+        padding: "0.75rem",
+        textAlign: "left",
+        fontSize: "0.8rem",
+    };
+
+    const savedQuotesTdStyle = {
+        padding: "0.75rem",
+        borderBottom: `1px solid ${colors.silverLakeBlue}`,
+        fontSize: "0.85rem",
+    };
+
+    const inputTitle = {
+        width: "100%",
+        padding: "0.6rem",
+        border: `1px solid ${colors.silverLakeBlue}`,
+        borderRadius: "6px",
+        backgroundColor: "white",
+        color: colors.richBlack,
+        fontSize: "0.9rem",
+        outline: "none",
+    };
+
+    const kebabMenuStyle = {
+        position: 'relative',
+        display: 'inline-block',
+        cursor: 'pointer',
+    };
+
+    const kebabButton = {
+        background: 'none',
+        border: 'none',
+        padding: '10',
+        width: '20px',   /* Adjust as needed */
+        height: '20px',  /* Adjust as needed */
+        marginLeft: '-5px', /* Adjust negative margin to compensate */
+        marginRight: '-5px',
+        cursor: 'pointer',
+    };
+
+    const menuContentStyle = {
+        position: 'absolute',
+        right: 0,
+        top: '100%',
+        backgroundColor: 'white',
+        border: '1px solid #ccc',
+        borderRadius: '4px',
+        padding: '5px 0',
+        zIndex: 1,
+        minWidth: '150px',
+    };
+
+    const menuItemStyle = {
+        padding: '8px 15px',
+        textAlign: 'left',
+        background: 'none',
+        border: 'none',
+        display: 'block',
+        width: '100%',
+        cursor: 'pointer',
+        ':hover': {
+            backgroundColor: '#f0f0f0',
+        },
+    };
+
+    const toggleMenu = (quoteId) => {
+        setMenuOpen(menuOpen === quoteId ? null : quoteId);
+    };
+
+    // Create empty rows with tdStyle applied
+    const emptyRows = Array(2).fill(null).map((_, index) => (
+        <tr key={`empty-${index}`}>
+            <td style={{ ...savedQuotesTdStyle, padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+            <td style={{ ...savedQuotesTdStyle, padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+            <td style={{ ...savedQuotesTdStyle, padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+            <td style={{ ...savedQuotesTdStyle, padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+            <td style={{ ...savedQuotesTdStyle, padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+            <td style={{ ...savedQuotesTdStyle, padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+            <td style={{ ...savedQuotesTdStyle, padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+            <td style={{ ...savedQuotesTdStyle, padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+        </tr>
+    ));
+
+    return (
+        <div style={pageStyle}>
+            <Navbar onLogout={() => navigate("/login")} />
+
+
+            <div style={containerStyle}>
+                <div className="flex justify-between items-center mb-6">
+                    <h1 className="text-4xl font-bold">Quote Calculator</h1>
+                    <button
+                        onClick={() => navigate("/client")}
+                        style={buttonStyle}
+                    >
+                        ← Back to Homepage
+                    </button>
+                </div>
+                <h1 style={headerStyle}>Quoting Calculator</h1>
+                <label htmlFor="quoteTitle" style={{ display: "block", marginBottom: "0.5rem", color: colors.oxfordBlue, fontWeight: "500", fontSize: "0.9rem", }}>
+                    Quote Title:
+                </label>
+                <input
+                    type="text"
+                    id="quoteTitle"
+                    style={inputTitle}
+                    value={quoteTitle}
+                    onChange={(e) => setQuoteTitle(e.target.value)}
+                    placeholder="Enter quote title"
+                />
+                <label htmlFor="productType" style={{ display: "block", marginBottom: "0.5rem", color: colors.oxfordBlue, fontWeight: "500", fontSize: "0.9rem", }}>
+                    Product Type:
+                </label>
+                <select
+                    id="productType"
+                    style={selectStyle}
+                    value={productType}
+                    onChange={handleProductTypeChange}
+                >
+                    <option value="">Select Product Type</option>
+                    {productTypes.map((type) => (
+                        <option key={type.value} value={type.value}>
+                            {type.label}
+                        </option>
+                    ))}
+                </select>
+
+                {loading && <p>Loading prices...</p>}
+
+                {productType && !loading && (
+                    <div>
+                        <h2 style={{ ...headerStyle, fontSize: "1.8rem", marginBottom: "1rem" }}>Parts and Quantities</h2>
+
+                        <div className="overflow-x-auto">
+                            <table style={tableStyle}>
+                                <thead style={{ backgroundColor: colors.yinmnBlue }}>
+                                    <tr>
+                                        <th style={{ ...thStyle, width: "40%" }}>Item</th>
+                                        <th style={{ ...thStyle, width: "20%" }}>Quantity</th>
+                                        <th style={{ ...thStyle, width: "20%" }}>Cost</th>
+                                        <th style={{ ...thStyle, width: "20%" }}>Sub-total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredPartsList.map((part) => { // Use filteredPartsList here
+                                        if (part.isTitle) {
+                                            return (
+                                                <tr key={part.name}>
+                                                    <td colSpan="4" style={titleStyle} dangerouslySetInnerHTML={{ __html: part.name }} />
+                                                </tr>
+                                            );
+                                        }
+
+                                        const cost = prices[part.id] || 0;
+                                        const quantity = quantities[part.id] || "";
+                                        const subtotalItem = cost * (quantity === "" ? 0 : parseInt(quantity, 10));
+
+                                        return (
+                                            <tr key={part.id}>
+                                                <td style={tdStyle}>{part.name}</td>
+                                                <td style={tdStyle}>
+                                                    <input
+                                                        type="number"
+                                                        style={inputStyle}
+                                                        value={quantity}
+                                                        onChange={(e) => handleQuantityChange(part.id, e.target.value)}
+                                                        min="0"
+                                                        placeholder=""
+                                                    />
+                                                </td>
+                                                <td style={tdStyle}>${cost}</td>
+                                                <td style={tdStyle}>${subtotalItem.toFixed(2)}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {/* Extra Costs input */}
+                                    <tr>
+                                        <td style={tdStyle}>EXTRA COSTS</td>
+                                        <td style={tdStyle}>
+                                            <input
+                                                type="number"
+                                                style={inputStyle}
+                                                value={extraCostsQuantity}
+                                                onChange={(e) => setExtraCostsQuantity(e.target.value)}
+                                                min="0"
+                                                placeholder=""
+                                            />
+                                        </td>
+                                        <td style={tdStyle}>
+                                            <input
+                                                type="number"
+                                                style={inputStyle}
+                                                value={extraCostsPrice}
+                                                onChange={(e) => setExtraCostsPrice(e.target.value)}
+                                                placeholder=""
+                                            />
+                                        </td>
+                                        <td style={tdStyle}>
+                                            ${((extraCostsQuantity === "" ? 0 : parseInt(extraCostsQuantity, 10)) * (extraCostsPrice === "" ? 0 : parseFloat(extraCostsPrice))).toFixed(2)}
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
-                        <button onClick={() => navigate(`/client/jobs/${job.id}`)} className="text-blue-600 hover:underline ml-2">View</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+
+                        <div style={totalsStyle}>
+                            <h2 style={{ ...headerStyle, fontSize: "1.6rem", marginTop: "1.5rem", marginBottom: "0.8rem" }}>Totals</h2>
+                            <p>Subtotal: ${subtotal.toFixed(2)}</p>
+                            <p>GST ({gstRate * 100}%): ${gst.toFixed(2)}</p>
+                            <p style={{ fontSize: "1.3rem", fontWeight: "600" }}>Total: ${total.toFixed(2)}</p>
+                        </div>
+                    </div>
+                )}
+                <button style={buttonStyle} onClick={handleSubmit}>
+                    {isEditing ? "Update Quote" : "Save Quote"}
+                </button>
+                {/* Saved Quotes Table */}
+                {savedQuotes.length > 0 && (
+                    <div>
+                        <h2 style={{ ...headerStyle, fontSize: "1.6rem", marginTop: "2rem", marginBottom: "1rem" }}>Saved Quotes</h2>
+                        <div className="overflow-x-auto">
+                            <table style={savedQuotesTableStyle}>
+                                <thead>
+                                    <tr>
+                                        <th style={savedQuotesThStyle}>Date</th>
+                                        <th style={savedQuotesThStyle}>Quote Title</th>
+                                        <th style={savedQuotesThStyle}>Product Type</th>
+                                        <th style={savedQuotesThStyle}>Stair Total</th>
+                                        <th style={savedQuotesThStyle}>Balustrade Total</th>
+                                        <th style={savedQuotesThStyle}>Extras Total</th>
+                                        <th style={savedQuotesThStyle}>Total</th>
+                                        <th style={savedQuotesThStyle}>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {savedQuotes.map(quote => (
+                                        <tr key={quote.id}>
+                                            <td style={savedQuotesTdStyle}>
+                                                {quote.createdAt?.toDate ? quote.createdAt.toDate().toLocaleDateString() : new Date(quote.createdAt).toLocaleDateString()}
+                                            </td>
+                                            <td style={savedQuotesTdStyle}>{quote.quoteTitle}</td>
+                                            <td style={savedQuotesTdStyle}>{productTypes.find(pt => pt.value === quote.productType)?.label || "Unknown"}</td>
+                                            <td style={savedQuotesTdStyle}>${quote.stairTotal?.toFixed(2) || 0}</td>
+                                            <td style={savedQuotesTdStyle}>${quote.balustradeTotal?.toFixed(2) || 0}</td>
+                                            <td style={savedQuotesTdStyle}>${quote.extrasTotal?.toFixed(2) || 0}</td>
+                                            <td style={savedQuotesTdStyle}>${quote.total?.toFixed(2) || 0}</td>
+                                            <td style={savedQuotesTdStyle}>
+                                                <div style={kebabMenuStyle} ref={menuRef}>
+                                                    <button
+                                                        style={kebabButton}
+                                                        onClick={() => toggleMenu(quote.id)}
+                                                    >
+                                                        <FontAwesomeIcon icon={faEllipsisV} />
+                                                    </button>
+                                                    {menuOpen === quote.id && (
+                                                        <div style={menuContentStyle}>
+                                                            <button
+                                                                style={menuItemStyle}
+                                                                onClick={() => {
+                                                                    handleEditQuote(quote);
+                                                                    toggleMenu(null);
+                                                                }}
+                                                            >
+                                                                Edit
+                                                            </button>
+                                                            <button
+                                                                style={menuItemStyle}
+                                                                onClick={() => {
+                                                                    handleDeleteQuote(quote.id);
+                                                                    toggleMenu(null);
+                                                                }}
+                                                            >
+                                                                Delete
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {Array(2).fill(null).map((_, index) => (
+                                        <tr key={`empty-${index}`} style={{ height: '38px' }}>
+                                            <td style={{ padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+                                            <td style={{ padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+                                            <td style={{ padding: '0', borderBottom: 'none' }}>&nbsp;</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 }
+
+export default QuotingCalculator;
+
+

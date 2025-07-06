@@ -1,119 +1,49 @@
-import React, { useContext, useEffect } from "react";
+// src/App.jsx (Updated)
+import React, { useContext } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import { signOut } from "firebase/auth";
-import { auth } from "./firebase";
-import Login from "./Login";
-import AdminDashboard from "./AdminDashboard";
-import ClientDashboardHome from "./ClientDashboardHome";
-import Homepage from "./Homepage";
-import JobsModule from "./modules/JobsModule";
-import InvoicesModule from "./modules/InvoicesModule";
-import CRMModule from "./modules/CRMModule";
-import MetricsModule from "./modules/MetricsModule";
-import QuoteCalculatorModule from "./modules/QuoteCalculatorModule";
-import JobDetail from "./modules/JobDetail";
 import { AuthContext } from "./AuthContext";
+
+// Layout
+import MainLayout from "./components/MainLayout"; // <-- Import MainLayout
+
+// Pages
+import Login from "./Login";
+import Homepage from "./Homepage";
+import ClientDashboardHome from "./ClientDashboardHome";
+import JobsModule from "./modules/JobsModule";
+import JobDetail from "./modules/JobDetail";
+import QuoteCalculatorModule from "./modules/QuoteCalculatorModule";
+// ... import other modules
 
 export default function App() {
   const { currentUser, authInitialized } = useContext(AuthContext);
 
-  const handleLogout = () => {
-    signOut(auth)
-      .then(() => console.log("User signed out"))
-      .catch((error) => console.error("Logout error:", error));
-  };
-
-  // Show loading indicator until auth is initialized
   if (!authInitialized) {
-    return <div>Loading...</div>;
+    return <div className="flex h-screen items-center justify-center">Loading...</div>;
   }
+
+  // A wrapper for protected routes
+  const ProtectedRoute = ({ children }) => {
+    if (!currentUser) {
+      return <Navigate to="/login" replace />;
+    }
+    // Wrap the children (the page component) in the MainLayout
+    return <MainLayout>{children}</MainLayout>;
+  };
 
   return (
     <Routes>
       <Route path="/" element={<Homepage />} />
-      <Route path="/login" element={<Login />} />
+      <Route path="/login" element={!currentUser ? <Login /> : <Navigate to="/client" />} />
 
-      {/* Admin Route */}
-      <Route
-        path="/admin"
-        element={
-          currentUser?.role === "admin" ? (
-            <AdminDashboard onLogout={handleLogout} />
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
+      {/* All client routes are now nested and protected */}
+      <Route path="/client" element={<ProtectedRoute><ClientDashboardHome /></ProtectedRoute>} />
+      <Route path="/client/jobs" element={<ProtectedRoute><JobsModule company={currentUser?.company} /></ProtectedRoute>} />
+      <Route path="/client/jobs/:id" element={<ProtectedRoute><JobDetail /></ProtectedRoute>} />
+      <Route path="/client/quotecalculator" element={<ProtectedRoute><QuoteCalculatorModule /></ProtectedRoute>} />
+      {/* Add other protected routes here in the same way */}
 
-      {/* Client Routes */}
-      <Route
-        path="/client"
-        element={
-          currentUser ? (
-            <ClientDashboardHome onLogout={handleLogout} />
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
-      <Route
-  path="/client/jobs"
-  element={currentUser ? <JobsModule company={currentUser.company} /> : <Navigate to="/login" replace />}
-/>
-<Route
-  path="/client/jobs/:id"
-  element={
-    currentUser ? (
-      <JobDetail />
-    ) : (
-      <Navigate to="/login" replace />
-    )
-  }
-/>
-      <Route
-        path="/client/invoices"
-        element={
-          currentUser ? (
-            <InvoicesModule />
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
-      <Route
-        path="/client/crm"
-        element={
-          currentUser ? (
-            <CRMModule />
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
-      <Route
-        path="/client/metrics"
-        element={
-          currentUser ? (
-            <MetricsModule />
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
-      <Route
-        path="/client/quotecalculator"
-        element={
-          currentUser ? (
-            <QuoteCalculatorModule />
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
-      <Route
-        path="*"
-        element={currentUser ? null : <Navigate to="/login" replace />}
-      />
+      <Route path="*" element={<Navigate to={currentUser ? "/client" : "/"} replace />} />
     </Routes>
   );
 }

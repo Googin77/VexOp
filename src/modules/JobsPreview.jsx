@@ -1,28 +1,16 @@
+// src/modules/JobsPreview.jsx (Updated)
 import React, { useEffect, useState } from "react";
 import { collection, query, where, limit, getDocs, orderBy } from "firebase/firestore";
 import { db } from "../firebase";
 import { useNavigate } from "react-router-dom";
 
-const colors = {
-  oxfordBlue: "#1b263b",
-  yinmnBlue: "#415a77",
-  silverLakeBlue: "#778da9",
-};
-
-const getStatusBadge = (status) => {
-    const baseStyle = {
-      padding: "0.2rem 0.5rem",
-      borderRadius: "6px",
-      fontSize: "0.75rem",
-      fontWeight: "600",
-      color: "white",
-      whiteSpace: 'nowrap',
-    };
-    let backgroundColor = "#999";
-    if (status === "Pending") backgroundColor = "#eab308";
-    if (status === "In Progress") backgroundColor = "#3b82f6";
-    if (status === "Completed") backgroundColor = "#10b981";
-    return { ...baseStyle, backgroundColor };
+const getStatusBadgeClass = (status) => {
+    switch (status) {
+        case "Pending": return "bg-yellow-100 text-yellow-800";
+        case "In Progress": return "bg-blue-100 text-blue-800";
+        case "Completed": return "bg-green-100 text-green-800";
+        default: return "bg-gray-100 text-gray-800";
+    }
 };
 
 export default function JobsPreview({ company }) {
@@ -31,22 +19,15 @@ export default function JobsPreview({ company }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!company) {
-      setLoading(false);
-      return;
-    }
+    if (!company) { setLoading(false); return; }
     
     async function fetchJobs() {
       try {
         const previewQuery = query(collection(db, "jobs"), where("company", "==", company), orderBy("createdAt", "desc"), limit(3));
-        const previewSnapshot = await getDocs(previewQuery);
-        const previewJobs = previewSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setJobs(previewJobs);
-      } catch (error) {
-        console.error("Error fetching jobs:", error);
-      } finally {
-        setLoading(false);
-      }
+        const snapshot = await getDocs(previewQuery);
+        setJobs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (error) { console.error("Error fetching jobs:", error); } 
+      finally { setLoading(false); }
     }
     fetchJobs();
   }, [company]);
@@ -56,61 +37,49 @@ export default function JobsPreview({ company }) {
     navigate("/client/jobs");
   };
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <h3 style={{ fontWeight: "700", fontSize: "1.3rem", color: colors.oxfordBlue, marginBottom: "0.5rem" }}>
-        Recent Jobs
-      </h3>
+  if (loading) {
+    return (
+        <div className="space-y-3 animate-pulse">
+            <div className="h-10 bg-slate-200 rounded-md"></div>
+            <div className="h-10 bg-slate-200 rounded-md"></div>
+            <div className="h-10 bg-slate-200 rounded-md"></div>
+        </div>
+    );
+  }
 
-      {loading ? (
-        <p>Loading...</p>
-      ) : (
-        <>
-          <div style={{ flex: 1 }}>
-            {jobs.length === 0 ? (
-              <p style={{ color: colors.silverLakeBlue }}>No jobs yet.</p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.8rem" }}>
-                {jobs.map((job) => (
-                  <div key={job.id} style={{
-                    backgroundColor: "rgba(27, 38, 59, 0.1)",
-                    padding: "0.75rem 1rem", 
-                    borderRadius: "10px",
-                    boxShadow: "inset 0 0 8px rgba(27, 38, 59, 0.15)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center"
-                  }}>
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex-grow">
+        {jobs.length === 0 ? (
+          <p className="text-gray-500">No jobs found.</p>
+        ) : (
+          <div className="space-y-3">
+            {jobs.map((job) => (
+              <div key={job.id} className="bg-brand-bg p-3 rounded-lg border border-brand-border">
+                <div className="flex justify-between items-center">
                     <div>
-                      <div style={{ fontWeight: "600" }}>{job.name}</div>
-                      <div style={{ fontSize: "0.8rem", color: colors.silverLakeBlue }}>
-                        Added: {job.createdAt?.toDate ? job.createdAt.toDate().toLocaleDateString() : 'Just now'}
-                      </div>
+                        <div className="font-semibold text-brand-dark">{job.name}</div>
+                        <div className="text-xs text-gray-500">
+                            Added: {job.createdAt?.toDate ? job.createdAt.toDate().toLocaleDateString() : 'N/A'}
+                        </div>
                     </div>
-                    <span style={getStatusBadge(job.status)}>{job.status}</span>
-                  </div>
-                ))}
+                    {/* FIX: Added 'whitespace-nowrap' to prevent the badge from breaking into two lines */}
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full whitespace-nowrap ${getStatusBadgeClass(job.status)}`}>
+                        {job.status}
+                    </span>
+                </div>
               </div>
-            )}
+            ))}
           </div>
-          
-          {/* This is the styled link at the bottom */}
-          <div 
-            onClick={stopAndNavigate}
-            style={{
-              marginTop: 'auto',        // Pushes to the bottom
-              paddingTop: '1rem',       // Space from content above
-              fontSize: "0.9rem",
-              color: colors.yinmnBlue,  // Text color like the other preview
-              fontWeight: "600",
-              cursor: "pointer",
-              textAlign: "left",       // Aligns text to the right
-            }}
-          >
-            Add or View Jobs →
-          </div>
-        </>
-      )}
+        )}
+      </div>
+      
+      <div 
+        onClick={stopAndNavigate}
+        className="mt-auto pt-4 text-sm text-brand-dark font-bold cursor-pointer hover:text-brand-accent transition-colors duration-200"
+      >
+        Add or View Jobs →
+      </div>
     </div>
   );
 }

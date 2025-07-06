@@ -64,8 +64,8 @@ function AppContent() {
         <Route path="/client" element={<ClientDashboardHome />} />
         <Route path="/client/jobs" element={<JobsModule />} />
         <Route path="/client/quotecalculator" element={<QuoteCalculatorModule />} />
-        <Route path="/client/invoices" element={<InvoicesModule />} />
-        <Route path="/client/crm" element={<CRMModule />} />
+        <Route path="/client/invoices" element={<ClientDashboardHome />} />
+        <Route path="/client/crm" element={<ClientDashboardHome />} />
         {/* Add any other client routes here */}
       </Route>
 

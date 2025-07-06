@@ -1,9 +1,9 @@
-
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './AuthContext';
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { useAuth } from './AuthContext';
 
 // Layouts and Components
 import PublicLayout from './components/PublicLayout';
+import MainLayout from './components/MainLayout'; // <-- Import the MainLayout with the sidebar
 
 // Standalone Pages
 import Login from './Login';
@@ -12,76 +12,79 @@ import Login from './Login';
 import Homepage from './Homepage';
 import Solutions from './Solutions';
 import Pricing from './Pricing';
-// NEW: Re-add imports for the legal pages
 import PrivacyPolicy from './PrivacyPolicy';
 import TermsOfService from './TermsOfService';
 
-// Authenticated (Private) Pages
+// Authenticated (Private) Pages & Modules
 import AdminDashboard from './AdminDashboard';
 import ClientDashboardHome from './ClientDashboardHome';
+import JobsModule from './modules/JobsModule';
+import QuoteCalculatorModule from './modules/QuoteCalculatorModule';
+import InvoicesModule from './modules/InvoicesModule';
+import CRMModule from './modules/CRMModule';
+// Make sure to import any other modules you have
 
-function PrivateRoute({ children, role, userRole }) {
+// This new component checks for a user and then renders the MainLayout.
+// The <Outlet /> inside MainLayout will be replaced by your specific pages (Dashboard, Jobs, etc.).
+const ProtectedLayout = () => {
   const { currentUser } = useAuth();
+
   if (!currentUser) {
     return <Navigate to="/login" />;
   }
-  if (role && userRole !== role) {
-    return <Navigate to="/" />;
-  }
-  return children;
-}
+
+  // If the user is logged in, render the MainLayout which contains the sidebar.
+  // The Outlet will render the specific child route (e.g., ClientDashboardHome, JobsModule).
+  return (
+    <MainLayout>
+      <Outlet />
+    </MainLayout>
+  );
+};
+
 
 function AppContent() {
-  const { currentUser } = useAuth();
-  const userRole = currentUser ? currentUser.role : null;
-
   return (
     <Routes>
-      {/* Routes with the Public Header and Footer */}
+      {/* --- Public Routes --- */}
       <Route element={<PublicLayout />}>
         <Route path="/" element={<Homepage />} />
         <Route path="/solutions" element={<Solutions />} />
         <Route path="/pricing" element={<Pricing />} />
-        {/* NEW: Add the routes for the legal pages back in */}
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms-of-service" element={<TermsOfService />} />
       </Route>
 
-      {/* Standalone route without the public layout */}
+      {/* --- Standalone Login Route --- */}
       <Route path="/login" element={<Login />} />
 
-       <Route
-        path="/admin"
-        element={
-          <PrivateRoute role="admin" userRole={userRole}>
-            <AdminDashboard />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/client"
-        element={
-          <PrivateRoute role="client" userRole={userRole}>
-            <ClientDashboardHome />
-          </PrivateRoute>
-        }
-      />
+      {/* --- Authenticated Client Routes --- */}
+      {/* All client-facing pages now go inside this protected layout route */}
+      <Route element={<ProtectedLayout />}>
+        <Route path="/client" element={<ClientDashboardHome />} />
+        <Route path="/client/jobs" element={<JobsModule />} />
+        <Route path="/client/quotecalculator" element={<QuoteCalculatorModule />} />
+        <Route path="/client/invoices" element={<InvoicesModule />} />
+        <Route path="/client/crm" element={<CRMModule />} />
+        {/* Add any other client routes here */}
+      </Route>
 
+      {/* --- Authenticated Admin Route (if different layout) --- */}
+      {/* If your admin has the same sidebar, you can place it inside the ProtectedLayout as well.
+          If it has a different layout, a new protected route would be needed here.
+          For now, this assumes it might be separate. */}
+      <Route path="/admin" element={<AdminDashboard />} />
+
+
+      {/* --- Fallback Route --- */}
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
 }
 
-
+// Your App component is now cleaner
 function App() {
-  return (
-    // AuthProvider is now defined thanks to the import
-    <AuthProvider>
-        
-        <AppContent />
-   
-    </AuthProvider>
-  );
+  return <AppContent />;
 }
 
 export default App;

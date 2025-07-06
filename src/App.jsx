@@ -3,7 +3,7 @@ import { useAuth } from './AuthContext';
 
 // Layouts and Components
 import PublicLayout from './components/PublicLayout';
-import MainLayout from './components/MainLayout'; // <-- Import the MainLayout with the sidebar
+import MainLayout from './components/MainLayout';
 
 // Standalone Pages
 import Login from './Login';
@@ -22,21 +22,15 @@ import JobsModule from './modules/JobsModule';
 import QuoteCalculatorModule from './modules/QuoteCalculatorModule';
 import InvoicesModule from './modules/InvoicesModule';
 import CRMModule from './modules/CRMModule';
-// Make sure to import any other modules you have
 
-// This new component checks for a user and then renders the MainLayout.
-// The <Outlet /> inside MainLayout will be replaced by your specific pages (Dashboard, Jobs, etc.).
 const ProtectedLayout = () => {
   const { currentUser } = useAuth();
-
   if (!currentUser) {
     return <Navigate to="/login" />;
   }
-
-  // If the user is logged in, render the MainLayout which contains the sidebar.
-  // The Outlet will render the specific child route (e.g., ClientDashboardHome, JobsModule).
   return (
     <MainLayout>
+      {/* The Outlet will pass down the currentUser from the context */}
       <Outlet />
     </MainLayout>
   );
@@ -44,42 +38,36 @@ const ProtectedLayout = () => {
 
 
 function AppContent() {
-  return (
-    <Routes>
-      {/* --- Public Routes --- */}
-      <Route element={<PublicLayout />}>
-        <Route path="/" element={<Homepage />} />
-        <Route path="/solutions" element={<Solutions />} />
-        <Route path="/pricing" element={<Pricing />} />
-        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-        <Route path="/terms-of-service" element={<TermsOfService />} />
-      </Route>
+    const { currentUser } = useAuth(); // Get currentUser here to pass as a prop
 
-      {/* --- Standalone Login Route --- */}
-      <Route path="/login" element={<Login />} />
+    return (
+        <Routes>
+            {/* --- Public Routes --- */}
+            <Route element={<PublicLayout />}>
+                <Route path="/" element={<Homepage />} />
+                <Route path="/solutions" element={<Solutions />} />
+                <Route path="/pricing" element={<Pricing />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                <Route path="/terms-of-service" element={<TermsOfService />} />
+            </Route>
 
-      {/* --- Authenticated Client Routes --- */}
-      {/* All client-facing pages now go inside this protected layout route */}
-      <Route element={<ProtectedLayout />}>
-        <Route path="/client" element={<ClientDashboardHome />} />
-        <Route path="/client/jobs" element={<JobsModule />} />
-        <Route path="/client/quotecalculator" element={<QuoteCalculatorModule />} />
-        <Route path="/client/invoices" element={<ClientDashboardHome />} />
-        <Route path="/client/crm" element={<ClientDashboardHome />} />
-        {/* Add any other client routes here */}
-      </Route>
+            {/* --- Standalone Login Route --- */}
+            <Route path="/login" element={<Login />} />
 
-      {/* --- Authenticated Admin Route (if different layout) --- */}
-      {/* If your admin has the same sidebar, you can place it inside the ProtectedLayout as well.
-          If it has a different layout, a new protected route would be needed here.
-          For now, this assumes it might be separate. */}
-      <Route path="/admin" element={<AdminDashboard />} />
-
-
-      {/* --- Fallback Route --- */}
-      <Route path="*" element={<Navigate to="/" />} />
-    </Routes>
-  );
+            {/* --- Authenticated Client Routes --- */}
+            <Route element={<ProtectedLayout />}>
+                <Route path="/client" element={<ClientDashboardHome />} />
+                {/* THIS IS THE CORRECTED LINE */}
+                <Route path="/client/jobs" element={<JobsModule company={currentUser?.company} />} />
+                <Route path="/client/quotecalculator" element={<QuoteCalculatorModule company={currentUser?.company} />} />
+                <Route path="/client/invoices" element={<InvoicesModule company={currentUser?.company} />} />
+                <Route path="/client/crm" element={<CRMModule company={currentUser?.company} />} />
+            </Route>
+            
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+    );
 }
 
 // Your App component is now cleaner

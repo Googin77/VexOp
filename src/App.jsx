@@ -22,6 +22,8 @@ import JobsModule from './modules/JobsModule';
 import QuoteCalculatorModule from './modules/QuoteCalculatorModule';
 import InvoicesModule from './modules/InvoicesModule';
 import CRMModule from './modules/CRMModule';
+// Import the new IntegrationSettings component
+import IntegrationSettings from './modules/IntegrationSettings';
 
 const ProtectedLayout = () => {
   const { currentUser } = useAuth();
@@ -57,14 +59,17 @@ function AppContent() {
             {/* --- Authenticated Client Routes --- */}
             <Route element={<ProtectedLayout />}>
                 <Route path="/client" element={<ClientDashboardHome />} />
-                {/* THIS IS THE CORRECTED LINE */}
                 <Route path="/client/jobs" element={<JobsModule company={currentUser?.company} />} />
                 <Route path="/client/quotecalculator" element={<QuoteCalculatorModule company={currentUser?.company} />} />
                 <Route path="/client/invoices" element={<InvoicesModule company={currentUser?.company} />} />
                 <Route path="/client/crm" element={<CRMModule company={currentUser?.company} />} />
+                {/* --- THIS IS THE FIX --- */}
+                {/* Add the new route for the integrations settings page */}
+                <Route path="/client/settings/integrations" element={<IntegrationSettings />} />
             </Route>
             
             <Route path="/admin" element={<AdminDashboard />} />
+            {/* This wildcard route catches any path that doesn't match and redirects to the homepage */}
             <Route path="*" element={<Navigate to="/" />} />
         </Routes>
     );

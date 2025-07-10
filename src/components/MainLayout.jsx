@@ -1,8 +1,9 @@
-// src/components/MainLayout.jsx (Final Polish)
+// src/components/MainLayout.jsx
+
 import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faHome, faBriefcase, faCalculator, faFileInvoiceDollar, faUsers, faChartLine, faSignOutAlt } from '@fortawesome/free-solid-svg-icons';
+import { faHome, faBriefcase, faCalculator, faFileInvoiceDollar, faUsers, faChartLine, faCog, faSignOutAlt } from '@fortawesome/free-solid-svg-icons';
 import { auth } from "../firebase";
 import { signOut } from "firebase/auth";
 
@@ -15,7 +16,6 @@ export default function MainLayout({ children }) {
       .catch((error) => console.error("Logout error:", error));
   };
 
-  // Sharpness Fix: Changed rounded-lg to rounded-sm for a sharper corner
   const navLinkClasses = ({ isActive }) =>
     `flex items-center p-2 my-1 rounded-sm transition-colors duration-200 text-base ${
       isActive
@@ -27,7 +27,6 @@ export default function MainLayout({ children }) {
     <div className="flex h-screen font-sans">
       <aside className="w-64 flex-shrink-0 bg-brand-dark text-white flex flex-col p-3">
         
-        {/* Logo Zoom Fix: The container is now overflow-hidden, and the img has a negative margin */}
         <div 
             className="h-20 bg-white rounded-md flex items-center justify-center mb-4 cursor-pointer overflow-hidden"
             onClick={() => navigate('/client')}
@@ -35,7 +34,7 @@ export default function MainLayout({ children }) {
             <img 
                 src="/Hlogo.png" 
                 alt="VexOp+ Logo" 
-                className="max-h-full w-auto -m-2" // The negative margin "zooms" the logo
+                className="max-h-full w-auto -m-2"
             />
         </div>
 
@@ -64,12 +63,15 @@ export default function MainLayout({ children }) {
              <FontAwesomeIcon icon={faChartLine} className="w-5 h-5 mr-3" />
              <span>Metrics</span>
           </NavLink>
+           <NavLink to="/client/settings/integrations" className={navLinkClasses}>
+             <FontAwesomeIcon icon={faCog} className="w-5 h-5 mr-3" />
+             <span>Settings</span>
+            </NavLink>
         </nav>
 
         <div className="mt-auto">
            <button
              onClick={handleLogout}
-             // Sharpness Fix: Also applied rounded-sm here
              className="w-full flex items-center p-2 rounded-sm text-gray-300 hover:bg-red-600 hover:text-white transition-colors duration-200 text-base"
            >
              <FontAwesomeIcon icon={faSignOutAlt} className="w-5 h-5 mr-3" />
@@ -79,7 +81,7 @@ export default function MainLayout({ children }) {
       </aside>
 
       <main className="flex-1 overflow-y-auto bg-slate-100">
-        {children}
+        <Outlet />
       </main>
     </div>
   );

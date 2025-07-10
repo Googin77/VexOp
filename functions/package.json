@@ -1,0 +1,17 @@
+{
+  "name": "functions",
+  "private": true,
+  "main": "index.cjs",
+  "dependencies": {
+    "@google-cloud/secret-manager": "^6.0.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "firebase-admin": "^12.1.1",
+    "firebase-functions": "^5.0.1",
+    "xero-node": "^13.0.0"
+  },
+  "engines": {
+    "node": "20"
+  }
+}

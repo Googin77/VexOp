@@ -48,15 +48,17 @@ const IntegrationSettings = () => {
 
     try {
       const functionBaseUrl = 'https://australia-southeast1-buildops-dashboard.cloudfunctions.net';
-      const connectUrl = `${functionBaseUrl}/xeroAuth/initiate?companyId=${companyId}`;
       
       // =================================================================
-      // === THE FIX IS HERE ===
-      // Add `cache: 'no-cache'` to the fetch options.
-      // This forces the browser to make a fresh request every time,
-      // ignoring any cached 304 responses.
+      // === THE FINAL FIX IS HERE ===
+      // Add a unique timestamp as a "cache buster" query parameter.
+      // This makes the URL different for every request, forcing the
+      // browser to bypass any cache and hit the Cloud Function directly.
       // =================================================================
-      const response = await fetch(connectUrl, { cache: 'no-cache' });
+      const cacheBuster = new Date().getTime();
+      const connectUrl = `${functionBaseUrl}/xeroAuth/initiate?companyId=${companyId}&cacheBuster=${cacheBuster}`;
+      
+      const response = await fetch(connectUrl);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Failed to get connection URL from server.' }));

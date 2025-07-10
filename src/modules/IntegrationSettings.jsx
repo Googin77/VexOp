@@ -48,7 +48,7 @@ const IntegrationSettings = () => {
 
     try {
       const functionBaseUrl = 'https://australia-southeast1-buildops-dashboard.cloudfunctions.net';
-      const connectUrl = `${functionBaseUrl}/xeroAuth/initiateXeroAuth?companyId=${companyId}`;
+      const connectUrl = `${functionBaseUrl}/xeroAuth/initiate?companyId=${companyId}`;
       
       // 1. Fetch the consent URL from your Cloud Function.
       const response = await fetch(connectUrl);

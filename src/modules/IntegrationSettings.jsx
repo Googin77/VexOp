@@ -4,14 +4,13 @@ import React, { useState, useEffect, useContext } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { AuthContext } from '../AuthContext';
-import { toast } from 'react-toastify'; // Import toast for notifications
+import { toast } from 'react-toastify';
 
 const IntegrationSettings = () => {
   const { currentUser } = useContext(AuthContext);
   const [companyId, setCompanyId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch the company ID when the component mounts
   useEffect(() => {
     if (!currentUser) {
       setIsLoading(false);
@@ -39,35 +38,35 @@ const IntegrationSettings = () => {
     fetchCompanyId();
   }, [currentUser]);
 
-  // Handle the connection process to Xero
   const handleConnectXero = async () => {
     if (!companyId) {
       toast.error('Company information is missing. Cannot connect to Xero.');
       return;
     }
 
-    // Give immediate feedback to the user
     toast.info("Preparing to connect to Xero...");
 
     try {
       const functionBaseUrl = 'https://australia-southeast1-buildops-dashboard.cloudfunctions.net';
       const connectUrl = `${functionBaseUrl}/xeroAuth/initiate?companyId=${companyId}`;
       
-      // 1. Fetch the consent URL from your Cloud Function
-      const response = await fetch(connectUrl);
+      // =================================================================
+      // === THE FIX IS HERE ===
+      // Add `cache: 'no-cache'` to the fetch options.
+      // This forces the browser to make a fresh request every time,
+      // ignoring any cached 304 responses.
+      // =================================================================
+      const response = await fetch(connectUrl, { cache: 'no-cache' });
       
       if (!response.ok) {
-        // Parse the error message from the server if possible
         const errorData = await response.json().catch(() => ({ message: 'Failed to get connection URL from server.' }));
         throw new Error(errorData.message);
       }
       
-      // 2. Parse the JSON response to get the consentUrl
       const data = await response.json();
       const { consentUrl } = data;
 
       if (consentUrl) {
-        // 3. Redirect the user's browser to the Xero login page
         window.location.href = consentUrl;
       } else {
         throw new Error('Consent URL was not provided by the server.');
@@ -79,7 +78,6 @@ const IntegrationSettings = () => {
     }
   };
 
-  // Display a loading state while fetching company data
   if (isLoading) {
     return <div className="p-8 text-center">Loading Settings...</div>;
   }

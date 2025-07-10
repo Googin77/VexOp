@@ -1,5 +1,7 @@
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from './AuthContext';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 // Layouts and Components
 import PublicLayout from './components/PublicLayout';
@@ -32,15 +34,13 @@ const ProtectedLayout = () => {
   }
   return (
     <MainLayout>
-      {/* The Outlet will pass down the currentUser from the context */}
       <Outlet />
     </MainLayout>
   );
 };
 
-
 function AppContent() {
-    const { currentUser } = useAuth(); // Get currentUser here to pass as a prop
+    const { currentUser } = useAuth();
 
     return (
         <Routes>
@@ -63,8 +63,8 @@ function AppContent() {
                 <Route path="/client/quotecalculator" element={<QuoteCalculatorModule company={currentUser?.company} />} />
                 <Route path="/client/invoices" element={<InvoicesModule company={currentUser?.company} />} />
                 <Route path="/client/crm" element={<CRMModule company={currentUser?.company} />} />
-                {/* --- THIS IS THE FIX --- */}
-                {/* Add the new route for the integrations settings page */}
+                
+                {/* --- NEW ROUTE ADDED HERE --- */}
                 <Route path="/client/settings/integrations" element={<IntegrationSettings />} />
             </Route>
             
@@ -75,9 +75,25 @@ function AppContent() {
     );
 }
 
-// Your App component is now cleaner
+// App component includes the AppContent and the ToastContainer
 function App() {
-  return <AppContent />;
+  return (
+    <>
+      <AppContent />
+      <ToastContainer
+        position="top-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+      />
+    </>
+  );
 }
 
 export default App;

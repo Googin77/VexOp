@@ -8,6 +8,8 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const express = require("express");
 const cors = require("cors");
+// --- THIS IS THE FIX (Part 1) ---
+// We need cookie-parser to manage the temporary cookie.
 const cookieParser = require("cookie-parser");
 const { XeroClient } = require("xero-node");
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
@@ -26,9 +28,6 @@ async function getSecret(secretName) {
   try {
     const [version] = await secretClient.accessSecretVersion({ name });
     const secretValue = version.payload.data.toString('utf8');
-    // --- THIS IS THE FIX ---
-    // Use a regular expression to remove ALL whitespace characters (spaces, newlines, tabs, etc.)
-    // from the secret to ensure it is perfectly clean.
     return secretValue.replace(/\s/g, '');
   } catch (error) {
     console.error(`Error accessing secret ${secretName}:`, error);
@@ -38,17 +37,10 @@ async function getSecret(secretName) {
 
 // ===================================================================
 // 3. CALLABLE FUNCTION: provisionNewUser
-// Replaces the old onCreate trigger. Allows an admin to create a new
-// user and assign them to a specific company.
 // ===================================================================
 exports.provisionNewUser = functions
   .region('australia-southeast1')
   .https.onCall(async (data, context) => {
-    // Optional: Add a check to ensure only authenticated admins can run this.
-    // if (!context.auth || context.auth.token.role !== 'admin') {
-    //   throw new functions.https.HttpsError('permission-denied', 'You must be an admin to perform this action.');
-    // }
-
     const { email, password, companyId, companyName } = data;
 
     if (!email || !password || !companyId || !companyName) {
@@ -56,7 +48,6 @@ exports.provisionNewUser = functions
     }
 
     try {
-      // Step 1: Create the user in Firebase Authentication
       const userRecord = await admin.auth().createUser({
         email: email,
         password: password,
@@ -64,24 +55,19 @@ exports.provisionNewUser = functions
       const uid = userRecord.uid;
       console.log(`Successfully created new user in Auth: ${uid}`);
 
-      // Step 2: Prepare a batch write to update Firestore atomically
       const batch = db.batch();
-
-      // Step 3: Create the user document in the 'users1' collection to match your login logic
       const userRef = db.collection('users1').doc(uid);
       batch.set(userRef, {
         email: email,
-        company: companyId, // Using 'company' to match your existing schema
-        role: 'client'      // Setting the correct role for client dashboard access
+        company: companyId,
+        role: 'client'
       });
 
-      // Step 4: Create or update the company document. Using merge prevents overwriting.
       const companyRef = db.collection('companies').doc(companyId);
       batch.set(companyRef, {
         companyName: companyName
       }, { merge: true });
 
-      // Step 5: Create the placeholder integration documents for this company
       const xeroRef = db.collection('integrations').doc(`${companyId}_xero`);
       batch.set(xeroRef, {
         companyId: companyId,
@@ -98,7 +84,6 @@ exports.provisionNewUser = functions
         lastUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
       });
 
-      // Step 6: Commit all the changes to the database
       await batch.commit();
       console.log(`Successfully provisioned all documents for user ${uid} in company ${companyId}`);
 
@@ -113,11 +98,10 @@ exports.provisionNewUser = functions
 
 // ===================================================================
 // 4. HTTP FUNCTION: xeroAuth
-// Handles the Xero OAuth 2.0 connection process.
 // ===================================================================
 const xeroAuthApp = express();
 xeroAuthApp.use(cors({ origin: true }));
-xeroAuthApp.use(cookieParser());
+xeroAuthApp.use(cookieParser()); // Use the cookie-parser middleware
 
 let xero; 
 
@@ -141,8 +125,13 @@ xeroAuthApp.get("/initiateXeroAuth", async (req, res) => {
     return res.status(400).send("Error: Company ID is required.");
   }
   try {
+    // --- THIS IS THE FIX (Part 2) ---
+    // Set a secure, httpOnly cookie with the companyId. It will expire in 15 minutes.
+    res.cookie('company_id', companyId, { maxAge: 900000, httpOnly: true, secure: true });
+
     const xeroClient = await initializeXeroClient();
-    const consentUrl = await xeroClient.buildConsentUrl({ state: companyId });
+    // We no longer need to pass state in the URL, but the SDK requires an object.
+    const consentUrl = await xeroClient.buildConsentUrl();
     res.status(200).send({ consentUrl });
   } catch (error) {
     console.error("Error building Xero consent URL:", error);
@@ -152,12 +141,16 @@ xeroAuthApp.get("/initiateXeroAuth", async (req, res) => {
 
 xeroAuthApp.get("/handleXeroCallback", async (req, res) => {
   try {
+    // --- THIS IS THE FIX (Part 3) ---
+    // Read the companyId from the cookie instead of the URL state.
+    const companyId = req.cookies.company_id;
+    if (!companyId) {
+      throw new Error("Company ID cookie not found. Please try the connection process again.");
+    }
+
     const xeroClient = await initializeXeroClient();
     const tokenSet = await xeroClient.apiCallback(req.url);
-    const companyId = tokenSet.state;
-    if (!companyId) {
-      throw new Error("State parameter (companyId) is missing from callback.");
-    }
+    
     await xeroClient.updateTenants();
     const xeroTenantId = xeroClient.tenants[0].tenantId;
     const integrationData = {
@@ -173,10 +166,14 @@ xeroAuthApp.get("/handleXeroCallback", async (req, res) => {
     };
     const docRef = db.collection("integrations").doc(`${companyId}_xero`);
     await docRef.set(integrationData, { merge: true });
-    res.redirect("https://vexop.com.au/settings/integrations?status=xero_success");
+
+    const successUrl = "https://vexop.com.au/client/settings/integrations?status=xero_success";
+    res.redirect(successUrl);
+
   } catch (error) {
     console.error("Error in Xero callback handler:", error);
-    res.status(500).redirect("https://vexop.com.au/settings/integrations?status=xero_error");
+    const errorUrl = "https://vexop.com.au/client/settings/integrations?status=xero_error";
+    res.redirect(errorUrl);
   }
 });
 

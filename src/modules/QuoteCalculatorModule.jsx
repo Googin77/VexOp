@@ -10,15 +10,13 @@ import {
     deleteDoc, 
     doc, 
     setDoc,
-    onSnapshot // THE MISSING IMPORT IS HERE
+    onSnapshot
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from '../AuthContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEllipsisV } from '@fortawesome/free-solid-svg-icons';
-
-// --- The rest of the component is the same as the previous correct version ---
 
 const partsList = [
     { isTitle: true, name: "Stair", section: "stair" }, { name: "SUPPLY ONLY", id: "supplyonly", section: "stair" }, { name: "PRIVATE", id: "private", section: "stair" }, { name: "BUILDER", id: "builder", section: "stair" }, { name: "STAIR COST", id: "staircost", section: "stair" }, { name: "EXTRA WIDTH", id: "extrawidth", section: "stair" }, { name: "OPEN RISER", id: "openriser", section: "stair" }, { name: "CUT STRINGER", id: "cutstringer", section: "stair" }, { name: "QUARTER LANDING", id: "quarterlanding", section: "stair" }, { name: "FULL LANDING", id: "fulllanding", section: "stair" }, { name: "2 WINDER", id: "2winder", section: "stair" }, { name: "3 WINDER", id: "3winder", section: "stair" }, { name: "LANDING/WINDER POST", id: "landingpost", section: "stair" }, { name: "D-STEP", id: "dstep", section: "stair" },
@@ -49,16 +47,28 @@ export default function QuoteCalculator() {
     const [quoteBeingEdited, setQuoteBeingEdited] = useState(null);
     const menuRef = useRef(null);
 
+    // *** FIX: Added where() clause to filter prices by company ***
     useEffect(() => {
-        if (!productType) return;
+        if (!productType || !currentUser?.company) {
+            setPrices({});
+            return;
+        };
         setLoading(true);
-        const q = query(collection(db, "productprices"), where("name", "==", productType));
+        const q = query(
+            collection(db, "productprices"), 
+            where("name", "==", productType),
+            where("company", "==", currentUser.company) // This line is the fix
+        );
         getDocs(q).then(snap => {
-            if (!snap.empty) setPrices(snap.docs[0].data());
-            else setPrices({});
+            if (!snap.empty) {
+                setPrices(snap.docs[0].data());
+            } else {
+                console.warn(`No prices found for product type "${productType}" and company "${currentUser.company}"`);
+                setPrices({});
+            }
         }).catch(err => console.error("Error fetching prices:", err))
           .finally(() => setLoading(false));
-    }, [productType]);
+    }, [productType, currentUser?.company]);
 
     const filteredPartsList = productType ? partsList.filter(part => part.isTitle || prices[part.id] !== undefined) : [];
 
@@ -145,6 +155,7 @@ export default function QuoteCalculator() {
         }
     };
     
+    // --- The rest of the component's JSX is the same ---
     return (
         <div className="p-6 md:p-8 font-sans">
             <header className="mb-8">

@@ -11,7 +11,8 @@ const { URLSearchParams } = require('url');
 
 // --- Provider SDKs ---
 const { XeroClient } = require("xero-node");
-const QuickBooks = require("node-quickbooks"); // SDK for QuickBooks
+const QuickBooks = require("node-quickbooks");
+const axios = require("axios");
 
 // --- Google Cloud Services ---
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
@@ -28,12 +29,21 @@ const region = 'australia-southeast1';
 
 const secretClient = new SecretManagerServiceClient();
 const kmsClient = new KeyManagementServiceClient();
-const kmsKeyPath = kmsClient.cryptoKeyPath(
+
+// *** FIX: Define separate KMS key paths for each integration ***
+const kmsXeroKeyPath = kmsClient.cryptoKeyPath(
   projectId,
   region,
   'xero-integration-keyring',
   'xero-token-key'
 );
+const kmsQuickBooksKeyPath = kmsClient.cryptoKeyPath(
+  projectId,
+  region,
+  'quickbooks-integration-keyring', // The new keyring
+  'quickbooks-token-key'          // The new key
+);
+
 
 // ===================================================================
 // 3. UTILITY FUNCTIONS
@@ -48,22 +58,25 @@ async function getSecret(secretName) {
     throw new Error(`Could not access secret: ${secretName}.`);
   }
 }
-async function encryptWithKms(plaintext) {
+
+// *** FIX: Update encryption/decryption functions to accept a key path ***
+async function encryptWithKms(plaintext, keyPath) {
   if (!plaintext) return null;
   const plaintextBuffer = Buffer.from(plaintext, 'utf8');
   try {
-    const [result] = await kmsClient.encrypt({ name: kmsKeyPath, plaintext: plaintextBuffer });
+    const [result] = await kmsClient.encrypt({ name: keyPath, plaintext: plaintextBuffer });
     return result.ciphertext.toString('base64');
   } catch (error) {
     console.error('KMS Encryption failed:', error);
     throw new Error('Failed to encrypt data.');
   }
 }
-async function decryptWithKms(ciphertext) {
+
+async function decryptWithKms(ciphertext, keyPath) {
   if (!ciphertext) return null;
   const ciphertextBuffer = Buffer.from(ciphertext, 'base64');
   try {
-    const [result] = await kmsClient.decrypt({ name: kmsKeyPath, ciphertext: ciphertextBuffer });
+    const [result] = await kmsClient.decrypt({ name: keyPath, ciphertext: ciphertextBuffer });
     return result.plaintext.toString('utf8');
   } catch (error) {
     console.error('KMS Decryption failed:', error);
@@ -97,8 +110,9 @@ async function getAuthenticatedXeroClient(companyId) {
     if (integrationData.status !== 'connected') {
       throw new Error(`Xero integration for companyId ${companyId} is not connected. Status: ${integrationData.status}`);
     }
-    const accessToken = await decryptWithKms(integrationData.accessToken);
-    const refreshToken = await decryptWithKms(integrationData.refreshToken);
+    // *** FIX: Use the correct key path for decryption ***
+    const accessToken = await decryptWithKms(integrationData.accessToken, kmsXeroKeyPath);
+    const refreshToken = await decryptWithKms(integrationData.refreshToken, kmsXeroKeyPath);
     const tokenSet = {
       access_token: accessToken,
       refresh_token: refreshToken,
@@ -111,8 +125,9 @@ async function getAuthenticatedXeroClient(companyId) {
       console.log(`Token for company ${companyId} has expired. Refreshing...`);
       try {
         const newTokenSet = await xero.refreshToken();
-        const newEncryptedAccessToken = await encryptWithKms(newTokenSet.access_token);
-        const newEncryptedRefreshToken = await encryptWithKms(newTokenSet.refresh_token);
+        // *** FIX: Use the correct key path for encryption ***
+        const newEncryptedAccessToken = await encryptWithKms(newTokenSet.access_token, kmsXeroKeyPath);
+        const newEncryptedRefreshToken = await encryptWithKms(newTokenSet.refresh_token, kmsXeroKeyPath);
         await docRef.update({
           accessToken: newEncryptedAccessToken,
           refreshToken: newEncryptedRefreshToken,
@@ -155,9 +170,10 @@ exports.provisionNewUser = functions
       batch.set(companyRef, { companyName }, { merge: true });
       const xeroRef = db.collection('integrations').doc(`${companyId}_xero`);
       batch.set(xeroRef, { companyId, provider: "xero", status: "disconnected", lastUpdatedAt: admin.firestore.FieldValue.serverTimestamp() });
-      // Add a disconnected record for QuickBooks at the same time
+      
       const quickbooksRef = db.collection('integrations').doc(`${companyId}_quickbooks`);
       batch.set(quickbooksRef, { companyId, provider: "quickbooks", status: "disconnected", lastUpdatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      
       await batch.commit();
       return { status: 'success', message: `User ${email} created successfully.`, uid: uid };
     } catch (error) {
@@ -201,8 +217,9 @@ xeroAuthApp.get("/callback", async (req, res) => {
       throw new Error("Could not retrieve an active tenant from Xero.");
     }
     const xeroTenantId = activeTenant.tenantId;
-    const encryptedAccessToken = await encryptWithKms(tokenSet.access_token);
-    const encryptedRefreshToken = await encryptWithKms(tokenSet.refresh_token);
+    // *** FIX: Use the correct key path for encryption ***
+    const encryptedAccessToken = await encryptWithKms(tokenSet.access_token, kmsXeroKeyPath);
+    const encryptedRefreshToken = await encryptWithKms(tokenSet.refresh_token, kmsXeroKeyPath);
     const integrationData = {
       companyId: companyId,
       provider: "xero",
@@ -287,28 +304,10 @@ exports.syncXeroInvoices = functions.region(region).https.onCall(async (data, co
 
 
 // ===================================================================
+// 6. QUICKBOOKS-SPECIFIC LOGIC
 // ===================================================================
-// 6. QUICKBOOKS-SPECIFIC LOGIC (New Section)
-// ===================================================================
-// ===================================================================
-
 const quickbooksAuthApp = express();
 quickbooksAuthApp.use(cors({ origin: true }));
-
-const initializeQuickBooksClient = async () => {
-  return new QuickBooks(
-    await getSecret("QUICKBOOKS_CLIENT_ID"),
-    await getSecret("QUICKBOOKS_CLIENT_SECRET"),
-    '', // access token - not needed for auth url
-    false, // no token secret for OAuth 2.0
-    '', // realmId - not needed for auth url
-    true, // use sandbox environment
-    false, // enable debugging
-    null, // minor version
-    '2.0', // oauth version
-    '' // refresh token
-  );
-};
 
 // --- Route 1: /initiate ---
 quickbooksAuthApp.get("/initiate", async (req, res) => {
@@ -316,15 +315,26 @@ quickbooksAuthApp.get("/initiate", async (req, res) => {
   if (!companyId) {
     return res.status(400).send("Bad Request: Company ID is required.");
   }
+
   try {
-    const qbo = await initializeQuickBooksClient();
-    const authUri = qbo.getAuthorizeUri({
-      scope: 'com.intuit.quickbooks.accounting',
+    const clientId = await getSecret("QUICKBOOKS_CLIENT_ID");
+    const redirectUri = `https://${region}-${projectId}.cloudfunctions.net/quickbooksAuth/callback`;
+    const scope = 'com.intuit.quickbooks.accounting';
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      response_type: 'code',
+      scope: scope,
+      redirect_uri: redirectUri,
       state: companyId,
     });
+
+    const authUri = `https://appcenter.intuit.com/connect/oauth2?${params.toString()}`;
+    
     res.json({ consentUrl: authUri });
+
   } catch (error) {
-    console.error("Error building QuickBooks consent URL:", error);
+    console.error("CRITICAL ERROR in /initiate:", error.message);
     res.status(500).send("Internal Server Error: Failed to initiate QuickBooks authentication.");
   }
 });
@@ -333,16 +343,46 @@ quickbooksAuthApp.get("/initiate", async (req, res) => {
 quickbooksAuthApp.get("/callback", async (req, res) => {
   const successUrl = "https://vexop.com.au/client/settings/integrations?status=quickbooks_success";
   const errorUrl = "https://vexop.com.au/client/settings/integrations?status=quickbooks_error";
+  
   try {
-    const qbo = await initializeQuickBooksClient();
-    const tokenSet = await qbo.createToken(req.url);
     const companyId = req.query.state;
     const realmId = req.query.realmId;
-    if (!companyId || !realmId) {
-      throw new Error("State (companyId) or Realm ID is missing from the QuickBooks callback.");
+    const authCode = req.query.code;
+
+    if (!companyId || !realmId || !authCode) {
+      throw new Error("Required parameters (state, realmId, or code) are missing from the QuickBooks callback.");
     }
-    const encryptedAccessToken = await encryptWithKms(tokenSet.access_token);
-    const encryptedRefreshToken = await encryptWithKms(tokenSet.refresh_token);
+
+    const clientId = await getSecret("QUICKBOOKS_CLIENT_ID");
+    const clientSecret = await getSecret("QUICKBOOKS_CLIENT_SECRET");
+    const redirectUri = `https://${region}-${projectId}.cloudfunctions.net/quickbooksAuth/callback`;
+
+    const authHeader = 'Basic ' + Buffer.from(clientId + ':' + clientSecret).toString('base64');
+    
+    const requestBody = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code: authCode,
+      redirect_uri: redirectUri,
+    });
+
+    const tokenResponse = await axios.post(
+      'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
+      requestBody.toString(),
+      {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': authHeader,
+        },
+      }
+    );
+
+    const tokenSet = tokenResponse.data;
+
+    // *** FIX: Use the correct key path for encryption ***
+    const encryptedAccessToken = await encryptWithKms(tokenSet.access_token, kmsQuickBooksKeyPath);
+    const encryptedRefreshToken = await encryptWithKms(tokenSet.refresh_token, kmsQuickBooksKeyPath);
+    
     const integrationData = {
       companyId: companyId,
       provider: "quickbooks",
@@ -350,16 +390,19 @@ quickbooksAuthApp.get("/callback", async (req, res) => {
       refreshToken: encryptedRefreshToken,
       expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + (tokenSet.expires_in * 1000)),
       tenantId: realmId,
-      scopes: tokenSet.scope.split(" "),
+      scopes: tokenSet.scope ? tokenSet.scope.split(" ") : [],
       status: "connected",
       lastUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
+
     const docRef = db.collection("integrations").doc(`${companyId}_quickbooks`);
     await docRef.set(integrationData, { merge: true });
+    
     res.redirect(successUrl);
+
   } catch (error) {
-    console.error("Error in QuickBooks callback handler:", error);
-    const errorMessage = error.error_description || "An unexpected error occurred.";
+    console.error("Error in QuickBooks callback handler:", error.response ? error.response.data : error.message);
+    const errorMessage = error.response?.data?.error_description || "An unexpected error occurred.";
     res.redirect(`${errorUrl}&error_description=${encodeURIComponent(errorMessage)}`);
   }
 });

@@ -1,4 +1,4 @@
-// src/modules/JobsModule.jsx (Complete and Corrected)
+// src/modules/JobsModule.jsx (Corrected)
 import React, {
   useEffect,
   useState,
@@ -9,12 +9,12 @@ import {
   collection,
   query,
   where,
-  getDocs,
   addDoc,
   orderBy,
   deleteDoc,
   doc,
   setDoc,
+  onSnapshot, // Using onSnapshot for real-time updates
 } from "firebase/firestore";
 import { db, auth } from "../firebase"; 
 import { getIdToken } from "firebase/auth";
@@ -70,33 +70,44 @@ export default function JobsModule({ company }) {
   // Table State
   const [sortKey, setSortKey] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState("desc");
-  const [menuOpen, setMenuOpen] = useState(null);
-  const menuRef = useRef(null);
   
   const navigate = useNavigate();
 
-  // Fetching and Sorting Logic...
+  // *** FIX: Refactored to use onSnapshot for real-time updates ***
   useEffect(() => {
-    if (!company) { setLoading(false); return; }
-    async function fetchJobs() {
-      try {
-        setLoading(true);
-        const q = query(collection(db, "jobs"), where("company", "==", company), orderBy(sortKey, sortOrder));
-        const snapshot = await getDocs(q);
-        setJobs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      } catch (err) { console.error("Error fetching jobs:", err); } 
-      finally { setLoading(false); }
+    if (!company) {
+      setLoading(false);
+      setJobs([]); // Clear jobs if no company is selected
+      return;
     }
-    fetchJobs();
+    
+    setLoading(true);
+    const q = query(
+      collection(db, "jobs"),
+      where("company", "==", company),
+      orderBy(sortKey, sortOrder)
+    );
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const jobsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setJobs(jobsData);
+      setLoading(false);
+    }, (error) => {
+      // This is where the missing index error will be caught.
+      // Check the browser console for a URL to create the index.
+      console.error("Error fetching jobs:", error);
+      setLoading(false);
+    });
+
+    // Cleanup listener on component unmount
+    return () => unsubscribe();
   }, [company, sortKey, sortOrder]);
 
-  // **THE MISSING FUNCTION IS HERE**
+
   const toggleSort = (key) => {
-    // If clicking the same key, reverse the order
     if (key === sortKey) {
       setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
-      // If clicking a new key, set it and default to ascending
       setSortKey(key);
       setSortOrder('asc');
     }
@@ -116,6 +127,7 @@ export default function JobsModule({ company }) {
     if (value.length > 2) {
       try {
         const response = await getAuthenticatedFetch(`${CLOUD_FUNCTION_URL}?endpoint=autocomplete&input=${encodeURIComponent(value)}`);
+        if (!response) return;
         const data = await response.json();
         setAutocompletePredictions(data.predictions || []);
       } catch (error) { console.error("Error fetching address predictions:", error); }
@@ -141,8 +153,14 @@ export default function JobsModule({ company }) {
 
   async function handleAddJob(e) {
     e.preventDefault();
-    if (!isAddressSelected && !isEditing) return alert("Please select a valid address from the dropdown list.");
-    if (!newName || !assignedTo) return alert("Please fill out all required fields.");
+    if (!isAddressSelected && !isEditing) {
+        alert("Please select a valid address from the dropdown list.");
+        return;
+    }
+    if (!newName || !assignedTo) {
+        alert("Please fill out all required fields.");
+        return;
+    }
     
     setIsSubmitting(true);
     const newJobData = {
@@ -161,10 +179,8 @@ export default function JobsModule({ company }) {
     try {
       if (isEditing && jobIdToEdit) {
         await setDoc(doc(db, "jobs", jobIdToEdit), newJobData, { merge: true });
-        setJobs(prev => prev.map(j => j.id === jobIdToEdit ? { id: j.id, ...newJobData } : j));
       } else {
-        const docRef = await addDoc(collection(db, "jobs"), newJobData);
-        setJobs(prev => [{ id: docRef.id, ...newJobData }, ...prev]);
+        await addDoc(collection(db, "jobs"), newJobData);
       }
       resetForm();
     } catch (error) { console.error("Error saving job:", error); } 
@@ -175,7 +191,6 @@ export default function JobsModule({ company }) {
     if (window.confirm("Are you sure you want to delete this job?")) {
       try {
         await deleteDoc(doc(db, "jobs", jobId));
-        setJobs(prev => prev.filter((job) => job.id !== jobId));
       } catch (error) { console.error("Error deleting document: ", error); }
     }
   };
@@ -189,10 +204,10 @@ export default function JobsModule({ company }) {
     setIsEditing(true);
     setJobIdToEdit(job.id);
     setIsAddressSelected(true);
-    setMenuOpen(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // --- The rest of the component's JSX is the same ---
   return (
     <div className="p-6 md:p-8 font-sans">
       <header className="mb-8">

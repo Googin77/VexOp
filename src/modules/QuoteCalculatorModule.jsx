@@ -214,7 +214,7 @@ export default function QuoteCalculator() {
                                     <tr>
                                         <td className="px-4 py-3 font-semibold text-gray-800">EXTRA COSTS</td>
                                         <td className="px-4 py-3"><input type="number" value={extraCostsQuantity} onChange={e => setExtraCostsQuantity(e.target.value)} className="w-24 p-1 border border-gray-300 rounded-md" /></td>
-                                        <td className="px-4 py-3"><input type="number" value={extraCostsPrice} onChange={e => setExtraCostsPrice(e.target.value)} className="w-24 p-1 border border-gray-300 rounded-md" placeholder="Price each" /></td>
+                                        <td className="px-4 py-3"><input type="number" value={extraCostsPrice} onChange={e => setExtraCostsPrice(e.target.value)} className="w-24 p-1 border border-gray-300 rounded-md" placeholder="Price" /></td>
                                         <td className="px-4 py-3 font-medium text-gray-900">${((parseInt(extraCostsQuantity,10) || 0) * (parseFloat(extraCostsPrice) || 0)).toFixed(2)}</td>
                                     </tr>
                                 </tbody>

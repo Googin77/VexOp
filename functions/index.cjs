@@ -8,7 +8,12 @@ const cors = require("cors");
 const crypto = require("crypto");
 const { v4: uuidv4 } = require('uuid');
 const { URLSearchParams } = require('url');
+
+// --- Provider SDKs ---
 const { XeroClient } = require("xero-node");
+const QuickBooks = require("node-quickbooks"); // SDK for QuickBooks
+
+// --- Google Cloud Services ---
 const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
 const { KeyManagementServiceClient } = require('@google-cloud/kms');
 
@@ -18,30 +23,21 @@ const db = admin.firestore();
 // ===================================================================
 // 2. CONFIGURATION & CLIENTS
 // ===================================================================
-const projectId = 'buildops-dashboard'; // Your GCP Project ID
+const projectId = 'buildops-dashboard';
 const region = 'australia-southeast1';
 
-// --- Secret Manager Client ---
 const secretClient = new SecretManagerServiceClient();
-
-// --- KMS Client & Key Path ---
 const kmsClient = new KeyManagementServiceClient();
 const kmsKeyPath = kmsClient.cryptoKeyPath(
   projectId,
   region,
-  'xero-integration-keyring', // A name for your key ring
-  'xero-token-key'            // A name for your symmetric key
+  'xero-integration-keyring',
+  'xero-token-key'
 );
 
 // ===================================================================
 // 3. UTILITY FUNCTIONS
 // ===================================================================
-
-/**
- * Retrieves a secret value from Google Cloud Secret Manager.
- * @param {string} secretName The name of the secret to retrieve.
- * @returns {Promise<string>} The secret value.
- */
 async function getSecret(secretName) {
   const name = `projects/${projectId}/secrets/${secretName}/versions/latest`;
   try {
@@ -52,40 +48,22 @@ async function getSecret(secretName) {
     throw new Error(`Could not access secret: ${secretName}.`);
   }
 }
-
-/**
- * Encrypts plaintext using Google Cloud KMS.
- * @param {string} plaintext The text to encrypt.
- * @returns {Promise<string|null>} Base64 encoded ciphertext.
- */
 async function encryptWithKms(plaintext) {
   if (!plaintext) return null;
   const plaintextBuffer = Buffer.from(plaintext, 'utf8');
   try {
-    const [result] = await kmsClient.encrypt({
-      name: kmsKeyPath,
-      plaintext: plaintextBuffer,
-    });
+    const [result] = await kmsClient.encrypt({ name: kmsKeyPath, plaintext: plaintextBuffer });
     return result.ciphertext.toString('base64');
   } catch (error) {
     console.error('KMS Encryption failed:', error);
     throw new Error('Failed to encrypt data.');
   }
 }
-
-/**
- * Decrypts ciphertext using Google Cloud KMS.
- * @param {string} ciphertext The base64 encoded text to decrypt.
- * @returns {Promise<string|null>} The decrypted plaintext.
- */
 async function decryptWithKms(ciphertext) {
   if (!ciphertext) return null;
   const ciphertextBuffer = Buffer.from(ciphertext, 'base64');
   try {
-    const [result] = await kmsClient.decrypt({
-      name: kmsKeyPath,
-      ciphertext: ciphertextBuffer,
-    });
+    const [result] = await kmsClient.decrypt({ name: kmsKeyPath, ciphertext: ciphertextBuffer });
     return result.plaintext.toString('utf8');
   } catch (error) {
     console.error('KMS Decryption failed:', error);
@@ -93,10 +71,9 @@ async function decryptWithKms(ciphertext) {
   }
 }
 
-/**
- * Initializes a new, stateless Xero client instance.
- * @returns {Promise<XeroClient>} A new XeroClient instance.
- */
+// ===================================================================
+// 4. XERO-SPECIFIC LOGIC
+// ===================================================================
 const initializeXeroClient = async () => {
   const clientId = await getSecret("XERO_CLIENT_ID");
   const clientSecret = await getSecret("XERO_CLIENT_SECRET");
@@ -110,80 +87,57 @@ const initializeXeroClient = async () => {
   });
 };
 
-// ===================================================================
-// 4. PRODUCTION-GRADE XERO CLIENT FACTORY
-// ===================================================================
-
-/**
- * Provides a fully authenticated Xero client, handling token refresh automatically.
- * @param {string} companyId The company ID to get a client for.
- * @returns {Promise<{xero: XeroClient, tenantId: string}>} An object with the authenticated client and tenant ID.
- */
 async function getAuthenticatedXeroClient(companyId) {
-  const docRef = db.collection("integrations").doc(`${companyId}_xero`);
-  const docSnap = await docRef.get();
-
-  if (!docSnap.exists) {
-    throw new Error(`No Xero integration found for companyId: ${companyId}`);
-  }
-
-  const integrationData = docSnap.data();
-
-  if (integrationData.status !== 'connected') {
-    throw new Error(`Xero integration for companyId ${companyId} is not connected. Status: ${integrationData.status}`);
-  }
-
-  const accessToken = await decryptWithKms(integrationData.accessToken);
-  const refreshToken = await decryptWithKms(integrationData.refreshToken);
-
-  const tokenSet = {
-    access_token: accessToken,
-    refresh_token: refreshToken,
-    expires_at: integrationData.expiresAt.toMillis() / 1000,
-    scope: integrationData.scopes,
-  };
-
-  const xero = await initializeXeroClient();
-  xero.setTokenSet(tokenSet);
-
-  if (xero.readTokenSet().expired()) {
-    console.log(`Token for company ${companyId} has expired. Refreshing...`);
-    try {
-      const newTokenSet = await xero.refreshToken();
-      const newEncryptedAccessToken = await encryptWithKms(newTokenSet.access_token);
-      const newEncryptedRefreshToken = await encryptWithKms(newTokenSet.refresh_token);
-
-      await docRef.update({
-        accessToken: newEncryptedAccessToken,
-        refreshToken: newEncryptedRefreshToken,
-        expiresAt: admin.firestore.Timestamp.fromMillis(newTokenSet.expires_at * 1000),
-        status: "connected",
-        lastUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-      console.log(`Successfully refreshed and stored new token for company ${companyId}.`);
-    } catch (err) {
-      console.error(`Failed to refresh token for company ${companyId}. Marking as disconnected.`, err);
-      await docRef.update({
-        status: 'disconnected-requires-reauth',
-        lastUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-      throw new Error(`Xero token refresh failed for company ${companyId}. User must re-authenticate.`);
+    const docRef = db.collection("integrations").doc(`${companyId}_xero`);
+    const docSnap = await docRef.get();
+    if (!docSnap.exists) {
+      throw new Error(`No Xero integration found for companyId: ${companyId}`);
     }
-  }
-
-  await xero.updateTenants(false);
-  const activeTenantId = integrationData.tenantId;
-  if (!activeTenantId) {
-    throw new Error(`Tenant ID is missing for companyId: ${companyId}`);
-  }
-
-  return { xero, tenantId: activeTenantId };
+    const integrationData = docSnap.data();
+    if (integrationData.status !== 'connected') {
+      throw new Error(`Xero integration for companyId ${companyId} is not connected. Status: ${integrationData.status}`);
+    }
+    const accessToken = await decryptWithKms(integrationData.accessToken);
+    const refreshToken = await decryptWithKms(integrationData.refreshToken);
+    const tokenSet = {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      expires_at: integrationData.expiresAt.toMillis() / 1000,
+      scope: integrationData.scopes,
+    };
+    const xero = await initializeXeroClient();
+    xero.setTokenSet(tokenSet);
+    if (xero.readTokenSet().expired()) {
+      console.log(`Token for company ${companyId} has expired. Refreshing...`);
+      try {
+        const newTokenSet = await xero.refreshToken();
+        const newEncryptedAccessToken = await encryptWithKms(newTokenSet.access_token);
+        const newEncryptedRefreshToken = await encryptWithKms(newTokenSet.refresh_token);
+        await docRef.update({
+          accessToken: newEncryptedAccessToken,
+          refreshToken: newEncryptedRefreshToken,
+          expiresAt: admin.firestore.Timestamp.fromMillis(newTokenSet.expires_at * 1000),
+          status: "connected",
+          lastUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        console.log(`Successfully refreshed and stored new token for company ${companyId}.`);
+      } catch (err) {
+        console.error(`Failed to refresh token for company ${companyId}. Marking as disconnected.`, err);
+        await docRef.update({
+          status: 'disconnected-requires-reauth',
+          lastUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        throw new Error(`Xero token refresh failed for company ${companyId}. User must re-authenticate.`);
+      }
+    }
+    await xero.updateTenants(false);
+    const activeTenantId = integrationData.tenantId;
+    if (!activeTenantId) {
+      throw new Error(`Tenant ID is missing for companyId: ${companyId}`);
+    }
+    return { xero, tenantId: activeTenantId };
 }
 
-
-// ===================================================================
-// 5. CALLABLE FUNCTION: provisionNewUser
-// ===================================================================
 exports.provisionNewUser = functions
  .region(region)
  .https.onCall(async (data, context) => {
@@ -201,75 +155,54 @@ exports.provisionNewUser = functions
       batch.set(companyRef, { companyName }, { merge: true });
       const xeroRef = db.collection('integrations').doc(`${companyId}_xero`);
       batch.set(xeroRef, { companyId, provider: "xero", status: "disconnected", lastUpdatedAt: admin.firestore.FieldValue.serverTimestamp() });
-      const myobRef = db.collection('integrations').doc(`${companyId}_myob`);
-      batch.set(myobRef, { companyId, provider: "myob", status: "disconnected", lastUpdatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      // Add a disconnected record for QuickBooks at the same time
+      const quickbooksRef = db.collection('integrations').doc(`${companyId}_quickbooks`);
+      batch.set(quickbooksRef, { companyId, provider: "quickbooks", status: "disconnected", lastUpdatedAt: admin.firestore.FieldValue.serverTimestamp() });
       await batch.commit();
       return { status: 'success', message: `User ${email} created successfully.`, uid: uid };
     } catch (error) {
       console.error('Error provisioning new user:', error);
       throw new functions.https.HttpsError('internal', 'An unexpected error occurred.', error.message);
     }
-  });
+});
 
-
-// ===================================================================
-// 6. HTTP FUNCTION: xeroAuth
-// ===================================================================
 const xeroAuthApp = express();
 xeroAuthApp.use(cors({ origin: true }));
-
-// --- Route 1: /initiate ---
 xeroAuthApp.get("/initiate", async (req, res) => {
   const companyId = req.query.companyId;
   if (!companyId) {
     return res.status(400).send("Bad Request: Company ID is required.");
   }
-
   try {
     const xero = await initializeXeroClient();
-    // =================================================================
-    // === THE FIX IS HERE ===
-    // For xero-node v13+, the state must be passed inside an object.
-    // This ensures Xero sends the companyId back to our callback URL.
-    // =================================================================
     const consentUrl = await xero.buildConsentUrl({ state: companyId });
-
-    // Use res.json() which is idiomatic for sending JSON responses.
     res.json({ consentUrl });
   } catch (error) {
     console.error("Error building Xero consent URL:", error);
     res.status(500).send("Internal Server Error: Failed to initiate Xero authentication.");
   }
 });
-
-// --- Route 2: /callback ---
 xeroAuthApp.get("/callback", async (req, res) => {
   const successUrl = "https://vexop.com.au/client/settings/integrations?status=xero_success";
   const errorUrl = "https://vexop.com.au/client/settings/integrations?status=xero_error";
   const genericErrorMessage = "An unexpected error occurred during Xero authentication.";
-
   try {
     const params = new URLSearchParams(req.url.split('?')[1]);
-    const companyId = params.get('state'); // Get state (companyId) from params
-
+    const companyId = params.get('state');
     if (!companyId) {
       console.error("Critical Error: State parameter (companyId) is missing from Xero callback URL.");
       return res.redirect(`${errorUrl}&error_description=State+parameter+missing`);
     }
-
     const xero = await initializeXeroClient();
     const tokenSet = await xero.apiCallback(req.url);
-
-    await xero.updateTenants(false); // Pass false to prevent unnecessary token refresh checks
-    const activeTenant = xero.tenants[0]; // Get the first tenant
+    await xero.updateTenants(false);
+    const activeTenant = xero.tenants[0];
     if (!activeTenant || !activeTenant.tenantId) {
       throw new Error("Could not retrieve an active tenant from Xero.");
     }
     const xeroTenantId = activeTenant.tenantId;
-
     const encryptedAccessToken = await encryptWithKms(tokenSet.access_token);
     const encryptedRefreshToken = await encryptWithKms(tokenSet.refresh_token);
-
     const integrationData = {
       companyId: companyId,
       provider: "xero",
@@ -282,35 +215,22 @@ xeroAuthApp.get("/callback", async (req, res) => {
       status: "connected",
       lastUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
-
     const docRef = db.collection("integrations").doc(`${companyId}_xero`);
     await docRef.set(integrationData, { merge: true });
-
     res.redirect(successUrl);
-
   } catch (error) {
     console.error("Error in Xero callback handler:", error.message);
     res.redirect(`${errorUrl}&error_description=${encodeURIComponent(genericErrorMessage)}`);
   }
 });
-
 exports.xeroAuth = functions.region(region).https.onRequest(xeroAuthApp);
 
-
-// ===================================================================
-// 7. HTTP FUNCTION: xeroWebhookHandler
-// ===================================================================
 const xeroWebhookApp = express();
-
 xeroWebhookApp.post("/receive", express.raw({ type: 'application/json' }), async (req, res) => {
   try {
     const webhookKey = await getSecret("XERO_WEBHOOK_KEY");
-    const computedSignature = crypto
-     .createHmac('sha256', webhookKey)
-     .update(req.body)
-     .digest('base64');
+    const computedSignature = crypto.createHmac('sha256', webhookKey).update(req.body).digest('base64');
     const xeroSignature = req.headers['x-xero-signature'];
-
     if (xeroSignature && crypto.timingSafeEqual(Buffer.from(computedSignature), Buffer.from(xeroSignature))) {
       console.log("Webhook signature verified successfully.");
       res.status(200).send();
@@ -325,7 +245,6 @@ xeroWebhookApp.post("/receive", express.raw({ type: 'application/json' }), async
     res.status(500).send("Internal Server Error");
   }
 });
-
 async function processWebhookPayload(payload) {
   if (payload.events && payload.events.length > 0) {
     console.log(`Processing ${payload.events.length} webhook events.`);
@@ -334,13 +253,8 @@ async function processWebhookPayload(payload) {
     }
   }
 }
-
 exports.xeroWebhookHandler = functions.region(region).https.onRequest(xeroWebhookApp);
 
-
-// ===================================================================
-// 8. EXAMPLE API USAGE FUNCTION (Callable)
-// ===================================================================
 exports.syncXeroInvoices = functions.region(region).https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
@@ -349,14 +263,12 @@ exports.syncXeroInvoices = functions.region(region).https.onCall(async (data, co
   if (!companyId) {
     throw new functions.https.HttpsError('invalid-argument', 'The function must be called with a "companyId".');
   }
-
   try {
     const { xero, tenantId } = await getAuthenticatedXeroClient(companyId);
     const whereFilter = 'Status=="AUTHORISED"';
     const response = await xero.accountingApi.getInvoices(tenantId, undefined, whereFilter);
     const invoices = response.body.invoices;
     console.log(`Found ${invoices.length} authorised invoices for company ${companyId}.`);
-
     return {
       status: 'success',
       invoiceCount: invoices.length,
@@ -372,3 +284,84 @@ exports.syncXeroInvoices = functions.region(region).https.onCall(async (data, co
     throw new functions.https.HttpsError('internal', 'Failed to sync Xero invoices.', error.message);
   }
 });
+
+
+// ===================================================================
+// ===================================================================
+// 6. QUICKBOOKS-SPECIFIC LOGIC (New Section)
+// ===================================================================
+// ===================================================================
+
+const quickbooksAuthApp = express();
+quickbooksAuthApp.use(cors({ origin: true }));
+
+const initializeQuickBooksClient = async () => {
+  return new QuickBooks(
+    await getSecret("QUICKBOOKS_CLIENT_ID"),
+    await getSecret("QUICKBOOKS_CLIENT_SECRET"),
+    '', // access token - not needed for auth url
+    false, // no token secret for OAuth 2.0
+    '', // realmId - not needed for auth url
+    true, // use sandbox environment
+    false, // enable debugging
+    null, // minor version
+    '2.0', // oauth version
+    '' // refresh token
+  );
+};
+
+// --- Route 1: /initiate ---
+quickbooksAuthApp.get("/initiate", async (req, res) => {
+  const companyId = req.query.companyId;
+  if (!companyId) {
+    return res.status(400).send("Bad Request: Company ID is required.");
+  }
+  try {
+    const qbo = await initializeQuickBooksClient();
+    const authUri = qbo.getAuthorizeUri({
+      scope: 'com.intuit.quickbooks.accounting',
+      state: companyId,
+    });
+    res.json({ consentUrl: authUri });
+  } catch (error) {
+    console.error("Error building QuickBooks consent URL:", error);
+    res.status(500).send("Internal Server Error: Failed to initiate QuickBooks authentication.");
+  }
+});
+
+// --- Route 2: /callback ---
+quickbooksAuthApp.get("/callback", async (req, res) => {
+  const successUrl = "https://vexop.com.au/client/settings/integrations?status=quickbooks_success";
+  const errorUrl = "https://vexop.com.au/client/settings/integrations?status=quickbooks_error";
+  try {
+    const qbo = await initializeQuickBooksClient();
+    const tokenSet = await qbo.createToken(req.url);
+    const companyId = req.query.state;
+    const realmId = req.query.realmId;
+    if (!companyId || !realmId) {
+      throw new Error("State (companyId) or Realm ID is missing from the QuickBooks callback.");
+    }
+    const encryptedAccessToken = await encryptWithKms(tokenSet.access_token);
+    const encryptedRefreshToken = await encryptWithKms(tokenSet.refresh_token);
+    const integrationData = {
+      companyId: companyId,
+      provider: "quickbooks",
+      accessToken: encryptedAccessToken,
+      refreshToken: encryptedRefreshToken,
+      expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + (tokenSet.expires_in * 1000)),
+      tenantId: realmId,
+      scopes: tokenSet.scope.split(" "),
+      status: "connected",
+      lastUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    const docRef = db.collection("integrations").doc(`${companyId}_quickbooks`);
+    await docRef.set(integrationData, { merge: true });
+    res.redirect(successUrl);
+  } catch (error) {
+    console.error("Error in QuickBooks callback handler:", error);
+    const errorMessage = error.error_description || "An unexpected error occurred.";
+    res.redirect(`${errorUrl}&error_description=${encodeURIComponent(errorMessage)}`);
+  }
+});
+
+exports.quickbooksAuth = functions.region(region).https.onRequest(quickbooksAuthApp);

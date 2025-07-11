@@ -9,6 +9,7 @@
     "express": "^4.19.2",
     "firebase-admin": "^12.1.0",
     "firebase-functions": "^5.0.1",
+    "node-quickbooks": "^2.0.46",
     "uuid": "^9.0.1",
     "xero-node": "^13.0.0"
   },

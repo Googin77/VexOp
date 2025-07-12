@@ -12,7 +12,7 @@ const MigrationScoping = () => {
     const [rows, setRows] = useState([]);
     const [isProcessing, setIsProcessing] = useState(false);
     const [mapping, setMapping] = useState({});
-  const [companyId, setCompanyId] = useState(''); // State to hold the organization ID
+  const [companyId, setCompanyId] = useState(''); // State to hold the company ID
 
     const handleFileChange = (event) => {
         const selectedFile = event.target.files[0];

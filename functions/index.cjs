@@ -21,6 +21,8 @@ const { KeyManagementServiceClient } = require('@google-cloud/kms');
 admin.initializeApp();
 const db = admin.firestore();
 
+const sgMail = require('@sendgrid/mail');
+
 // ===================================================================
 // 2. CONFIGURATION & CLIENTS
 // ===================================================================
@@ -355,51 +357,102 @@ quickbooksAuthApp.get("/callback", async (req, res) => {
 });
 exports.quickbooksAuth = functions.region(region).https.onRequest(quickbooksAuthApp);
 
-// --- NEW: QuickBooks Authenticated Client Factory ---
+// --- QuickBooks Authenticated Client Factory (Corrected) ---
 async function getAuthenticatedQuickBooksClient(companyId) {
     const docRef = db.collection("integrations").doc(`${companyId}_quickbooks`);
     const docSnap = await docRef.get();
+
     if (!docSnap.exists || docSnap.data().status !== 'connected') {
         throw new functions.https.HttpsError('failed-precondition', `QuickBooks integration not found or not connected for companyId: ${companyId}`);
     }
+
     const integrationData = docSnap.data();
-    const accessToken = await decryptWithKms(integrationData.accessToken, kmsQuickBooksKeyPath);
-    const refreshToken = await decryptWithKms(integrationData.refreshToken, kmsQuickBooksKeyPath);
+
+    // Decrypt the stored tokens
+    let accessToken = await decryptWithKms(integrationData.accessToken, kmsQuickBooksKeyPath);
+    let refreshToken = await decryptWithKms(integrationData.refreshToken, kmsQuickBooksKeyPath);
     const realmId = integrationData.tenantId;
-    if (!accessToken || !refreshToken || !realmId) {
-        throw new functions.https.HttpsError('internal', 'Stored token data is incomplete.');
+
+    if (!refreshToken || !realmId) {
+        throw new functions.https.HttpsError('internal', 'Stored token data is critically incomplete (missing refresh token or realmId).');
     }
+
+    // Check if the token is expired or close to expiring (e.g., within 5 minutes)
+    const fiveMinutesInMillis = 5 * 60 * 1000;
+    const isTokenExpired = integrationData.expiresAt.toMillis() - fiveMinutesInMillis <= Date.now();
+
+    if (isTokenExpired) {
+        console.log(`[QB Client] Token for company ${companyId} is expired. Refreshing...`);
+        try {
+            // Use a temporary client to perform the refresh
+            const tempQbo = new QuickBooks(
+                await getSecret("QUICKBOOKS_CLIENT_ID"),
+                await getSecret("QUICKBOOKS_CLIENT_SECRET"),
+                accessToken, // old access token
+                false,
+                realmId,
+                true, // use sandbox
+                false, // debugging
+                null,
+                '2.0',
+                refreshToken // old refresh token
+            );
+            
+            // This is the correct method to refresh the token
+            const newTokenData = await new Promise((resolve, reject) => {
+                tempQbo.refreshAccessToken((err, tokenResponse) => {
+                    if (err) {
+                        return reject(err);
+                    }
+                    resolve(tokenResponse);
+                });
+            });
+
+            // Update the accessToken and refreshToken for the current operation
+            accessToken = newTokenData.access_token;
+            refreshToken = newTokenData.refresh_token;
+
+            // Encrypt and save the new tokens back to Firestore
+            const newEncryptedAccessToken = await encryptWithKms(newTokenData.access_token, kmsQuickBooksKeyPath);
+            const newEncryptedRefreshToken = await encryptWithKms(newTokenData.refresh_token, kmsQuickBooksKeyPath);
+            
+            await docRef.update({
+                accessToken: newEncryptedAccessToken,
+                refreshToken: newEncryptedRefreshToken,
+                expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + (newTokenData.expires_in * 1000)),
+                lastUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            console.log(`[QB Client] Successfully refreshed and stored new token for company ${companyId}.`);
+
+        } catch (err) {
+            console.error(`[QB Client] CRITICAL: Failed to refresh QuickBooks token for company ${companyId}. Marking as disconnected.`, err);
+            await docRef.update({
+                status: 'disconnected-requires-reauth',
+                lastUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            throw new functions.https.HttpsError('permission-denied', `QuickBooks token refresh failed for company ${companyId}. The user may need to re-authenticate.`);
+        }
+    }
+
+    // Initialize the final, authenticated client with a valid token
     const qbo = new QuickBooks(
         await getSecret("QUICKBOOKS_CLIENT_ID"),
         await getSecret("QUICKBOOKS_CLIENT_SECRET"),
-        accessToken,
+        accessToken, // The valid (or newly refreshed) access token
         false,
         realmId,
         true, // use sandbox
         false, // debugging
         null,
         '2.0',
-        refreshToken
+        refreshToken // The valid (or newly refreshed) refresh token
     );
-    qbo.on('tokenRefreshed', async (newTokenData) => {
-        console.log(`Refreshing QuickBooks token for company ${companyId}...`);
-        const newEncryptedAccessToken = await encryptWithKms(newTokenData.access_token, kmsQuickBooksKeyPath);
-        const newEncryptedRefreshToken = await encryptWithKms(newTokenData.refresh_token, kmsQuickBooksKeyPath);
-        await docRef.update({
-            accessToken: newEncryptedAccessToken,
-            refreshToken: newEncryptedRefreshToken,
-            expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + (newTokenData.expires_in * 1000)),
-            lastUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        console.log(`Successfully saved refreshed QuickBooks token for company ${companyId}.`);
-    });
+
     return qbo;
 }
 
-// --- NEW: Callable Function to READ Data from QuickBooks ---
-exports.syncQuickBooksData = functions.region(region).runWith({
-    secrets: ["QUICKBOOKS_CLIENT_ID", "QUICKBOOKS_CLIENT_SECRET", "KMS_KEY_ID", "KMS_KEY_RING_ID"],
-}).https.onCall(async (data, context) => {
+// --- Callable Function to READ Data from QuickBooks (Final Corrected Version) ---
+exports.syncQuickBooksData = functions.region(region).https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
     }
@@ -407,34 +460,50 @@ exports.syncQuickBooksData = functions.region(region).runWith({
     if (!companyId) {
         throw new functions.https.HttpsError('invalid-argument', 'The function must be called with a "companyId".');
     }
+
     try {
         const qbo = await getAuthenticatedQuickBooksClient(companyId);
-        const findInvoices = () => new Promise((resolve, reject) => {
-            qbo.findInvoices({
-                limit: 15,
-                offset: 1,
-                sort: 'TxnDate DESC'
-            }, (err, invoices) => {
-                if (err) return reject(err);
-                resolve(invoices);
+
+        // Use the simpler 'findInvoices' method without any complex parameters.
+        // This is the most reliable way to fetch the data.
+        const findInvoicesResponse = await new Promise((resolve, reject) => {
+            // Note: We are not passing any arguments like limit, offset, or sort here.
+            qbo.findInvoices((err, response) => {
+                if (err) {
+                    return reject(err);
+                }
+                resolve(response);
             });
         });
-        const invoiceResponse = await findInvoices();
-        console.log(`Found ${invoiceResponse.QueryResponse.Invoice.length} invoices for company ${companyId}.`);
+
+        // Ensure we have a valid array to work with, even if no invoices are returned.
+        const allInvoices = findInvoicesResponse.QueryResponse.Invoice || [];
+
+        // Now, perform the sorting and limiting within our JavaScript code.
+        const sortedInvoices = allInvoices.sort((a, b) => {
+            // Sort by transaction date, descending (newest first).
+            return new Date(b.TxnDate) - new Date(a.TxnDate);
+        });
+        
+        // Get the first 15 invoices from the sorted array.
+        const limitedInvoices = sortedInvoices.slice(0, 15);
+
+        console.log(`Found ${allInvoices.length} total invoices, returning the latest ${limitedInvoices.length} for company ${companyId}.`);
+
         return {
             status: 'success',
-            invoices: invoiceResponse.QueryResponse.Invoice
+            invoices: limitedInvoices
         };
+
     } catch (error) {
-        console.error(`Failed to sync QuickBooks data for company ${companyId}:`, error);
-        throw new functions.https.HttpsError('internal', 'Failed to sync QuickBooks data.', error.message);
+        console.error(`Failed to sync QuickBooks data for company ${companyId}:`, error.Fault || error);
+        const errorMessage = error.Fault?.Error[0]?.Message || 'An unexpected error occurred while fetching invoices.';
+        throw new functions.https.HttpsError('internal', errorMessage, error.Fault);
     }
 });
 
-// --- NEW: Callable Function to WRITE Data to QuickBooks ---
-exports.createQuickBooksCustomer = functions.region(region).runWith({
-    secrets: ["QUICKBOOKS_CLIENT_ID", "QUICKBOOKS_CLIENT_SECRET", "KMS_KEY_ID", "KMS_KEY_RING_ID"],
-}).https.onCall(async (data, context) => {
+// --- Callable Function to WRITE Data to QuickBooks ---
+exports.createQuickBooksCustomer = functions.region(region).https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
     }
@@ -467,4 +536,84 @@ exports.createQuickBooksCustomer = functions.region(region).runWith({
         }
         throw new functions.https.HttpsError('internal', 'An unexpected error occurred while creating the customer.');
     }
+});
+
+
+/**
+ * HTTP-triggered function to handle new lead submissions.
+ * Saves the lead to Firestore and sends email notifications via SendGrid.
+ */
+exports.onLeadCreate = functions.region(region).https.onRequest(async (req, res) => {
+    // Use CORS to allow requests from your web app
+    cors({ origin: true })(req, res, async () => {
+
+        if (req.method !== 'POST') {
+            return res.status(405).send('Method Not Allowed');
+        }
+
+        try {
+            // Fetch the SendGrid API key from Secret Manager
+            const sendGridApiKey = await getSecret('SENDGRID_API_KEY');
+            sgMail.setApiKey(sendGridApiKey);
+
+            const { name, email, company, message } = req.body;
+
+            if (!name || !email || !company || !message) {
+                return res.status(400).json({ success: false, message: 'Missing required fields.' });
+            }
+
+            const leadData = {
+                name,
+                email,
+                company,
+                message,
+                status: 'New',
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            };
+
+            const leadRef = await db.collection('leads').add(leadData);
+            console.log(`Successfully created lead with ID: ${leadRef.id}`);
+
+            // --- Email Notification Logic ---
+
+            // 1. Email to the potential client
+            const clientMsg = {
+                to: email,
+                from: 'your-verified-sendgrid-email@vexop.com.au', // IMPORTANT: Use an email you've verified in SendGrid
+                subject: 'Thank You for Your Interest in VexOp+',
+                html: `
+                    <h1>Hi ${name},</h1>
+                    <p>Thank you for registering your interest in VexOp+. We've received your message and will be in touch shortly.</p>
+                    <p>Best regards,<br>The VexOp+ Team</p>
+                `,
+            };
+
+            // 2. Email to your internal team
+            const adminMsg = {
+                to: 'your-internal-team-email@example.com', // Your team's email
+                from: 'noreply@vexop.com.au', // Can be a no-reply address
+                subject: `New VexOp+ Lead: ${company}`,
+                html: `
+                    <h1>New Lead Submission</h1>
+                    <p><strong>Name:</strong> ${name}</p>
+                    <p><strong>Company:</strong> ${company}</p>
+                    <p><strong>Email:</strong> ${email}</p>
+                    <p><strong>Message:</strong></p>
+                    <p>${message}</p>
+                `,
+            };
+
+            // Send both emails
+            await Promise.all([sgMail.send(clientMsg), sgMail.send(adminMsg)]);
+
+            return res.status(200).json({ success: true, message: 'Thank you! Your message has been sent.' });
+
+        } catch (error) {
+            console.error('Error in onLeadCreate function:', error);
+            if (error.response) {
+                console.error('SendGrid Error Body:', error.response.body);
+            }
+            return res.status(500).json({ success: false, message: 'An unexpected error occurred while processing your request.' });
+        }
+    });
 });

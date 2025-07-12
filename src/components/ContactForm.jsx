@@ -1,6 +1,6 @@
 // src/components/ContactForm.jsx
+
 import React, { useState, useRef, useEffect } from "react";
-import emailjs from '@emailjs/browser';
 import ReCAPTCHA from "react-google-recaptcha";
 
 const ContactForm = ({ onClose }) => {
@@ -14,11 +14,14 @@ const ContactForm = ({ onClose }) => {
 
   const formRef = useRef(null);
 
+  // IMPORTANT: Ensure this URL matches the one from your Firebase console after deploying
+  const CLOUD_FUNCTION_URL = 'https://australia-southeast1-buildops-dashboard.cloudfunctions.net/onLeadCreate';
+
   const handleCaptchaChange = (value) => {
     setCaptcha(value);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     setSubmissionResult(null);
@@ -29,28 +32,34 @@ const ContactForm = ({ onClose }) => {
       return;
     }
 
-    const templateParams = {
-      from_name: name,
-      from_email: email,
-      message: message,
-      company: company,
-    };
-    // Your emailjs credentials
-    emailjs.send('service_vug8zg7', 'template_fzqn41o', templateParams, 'u6u4zgH2v5fV8GUJO')
-      .then((result) => {
-        setSubmissionResult({ success: true, message: "Thank you! Your message has been sent." });
-        setName('');
-        setEmail('');
-        setMessage('');
-        setCompany('');
-        setCaptcha(null); 
-      })
-      .catch((error) => {
-        setSubmissionResult({ success: false, message: "Oops! There was an error submitting your message." });
-      })
-      .finally(() => {
-        setIsSubmitting(false);
+    const leadData = { name, email, company, message };
+
+    try {
+      const response = await fetch(CLOUD_FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(leadData),
       });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'An error occurred submitting the form.');
+      }
+
+      setSubmissionResult({ success: true, message: result.message });
+      // Reset form on success
+      setName('');
+      setEmail('');
+      setMessage('');
+      setCompany('');
+      setCaptcha(null); 
+
+    } catch (error) {
+      setSubmissionResult({ success: false, message: `Oops! ${error.message}` });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   useEffect(() => {

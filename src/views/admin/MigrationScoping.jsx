@@ -2,48 +2,69 @@
 
 import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUpload, faFileCsv } from '@fortawesome/free-solid-svg-icons';
-import Papa from 'papaparse'; // --- IMPORT PAPAPARSE ---
+import { faUpload, faFileCsv, faFileExcel } from '@fortawesome/free-solid-svg-icons';
+import Papa from 'papaparse';
+import * as XLSX from 'xlsx'; // --- IMPORT XLSX LIBRARY ---
 
 const MigrationScoping = () => {
-    const [csvFile, setCsvFile] = useState(null);
+    const [file, setFile] = useState(null);
     const [headers, setHeaders] = useState([]);
-    const [rows, setRows] = useState([]); // --- NEW: State for data rows ---
+    const [rows, setRows] = useState([]);
     const [isProcessing, setIsProcessing] = useState(false);
 
-    // --- UPDATED: This function now parses the CSV ---
+    // --- UPDATED: This function now handles CSV, XLS, and XLSX files ---
     const handleFileChange = (event) => {
-        const file = event.target.files[0];
-        if (file && file.type === "text/csv") {
-            setCsvFile(file);
-            // Use Papaparse to read the CSV file
-            Papa.parse(file, {
-                header: true, // Treat the first row as headers
-                skipEmptyLines: true,
-                complete: function(results) {
-                    if (results.data.length > 0) {
-                        // Get the headers from the first row of data
-                        setHeaders(Object.keys(results.data[0]));
-                        // Store the first 5 rows for preview
-                        setRows(results.data.slice(0, 5));
+        const selectedFile = event.target.files[0];
+        if (!selectedFile) return;
+
+        setFile(selectedFile);
+        const reader = new FileReader();
+
+        // Check file type and use the appropriate parser
+        if (selectedFile.name.endsWith('.csv')) {
+            // Use Papaparse for CSV files
+            reader.onload = (e) => {
+                Papa.parse(e.target.result, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        if (results.data.length > 0) {
+                            setHeaders(Object.keys(results.data[0]));
+                            setRows(results.data.slice(0, 5));
+                        }
                     }
+                });
+            };
+            reader.readAsText(selectedFile);
+        } else if (selectedFile.name.endsWith('.xls') || selectedFile.name.endsWith('.xlsx')) {
+            // Use xlsx (SheetJS) for Excel files
+            reader.onload = (e) => {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const json = XLSX.utils.sheet_to_json(worksheet);
+
+                if (json.length > 0) {
+                    setHeaders(Object.keys(json[0]));
+                    setRows(json.slice(0, 5));
                 }
-            });
+            };
+            reader.readAsArrayBuffer(selectedFile);
         } else {
-            alert("Please upload a valid CSV file.");
-            setCsvFile(null);
+            alert("Please upload a valid CSV or Excel file (.xls, .xlsx).");
+            setFile(null);
             setHeaders([]);
             setRows([]);
         }
     };
 
     const handleImport = () => {
-        if (!csvFile) {
+        if (!file) {
             alert("Please upload a file first.");
             return;
         }
         setIsProcessing(true);
-        // TODO: This will eventually call a Cloud Function to process the import.
         console.log("Starting import process...");
         setTimeout(() => {
             console.log("Import complete (simulated).");
@@ -51,36 +72,48 @@ const MigrationScoping = () => {
         }, 2000);
     };
 
+    const getFileIcon = () => {
+        if (!file) return faUpload;
+        if (file.name.endsWith('.csv')) return faFileCsv;
+        return faFileExcel;
+    };
+
+    const getIconColor = () => {
+        if (!file) return 'text-gray-400';
+        if (file.name.endsWith('.csv')) return 'text-green-600';
+        return 'text-green-700';
+    }
+
     return (
         <div>
             <div className="bg-white p-6 rounded-xl shadow-md mb-8">
                 <h2 className="text-xl font-bold text-brand-dark mb-4">1. Upload Client Data</h2>
-                <p className="text-gray-600 mb-4">Upload the client's data export as a CSV file (e.g., customers, jobs, or items).</p>
+                <p className="text-gray-600 mb-4">Upload the client's data export as a CSV or Excel file.</p>
                 
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
                     <input
                         type="file"
-                        id="csv-upload"
+                        id="file-upload"
                         className="hidden"
-                        accept=".csv"
+                        // --- UPDATED: Accept CSV and Excel formats ---
+                        accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
                         onChange={handleFileChange}
                     />
-                    <label htmlFor="csv-upload" className="cursor-pointer">
+                    <label htmlFor="file-upload" className="cursor-pointer">
                         <FontAwesomeIcon icon={faUpload} className="text-4xl text-gray-400 mb-2" />
                         <p className="text-blue-600 font-semibold">Click to upload a file</p>
-                        <p className="text-xs text-gray-500">CSV up to 10MB</p>
+                        <p className="text-xs text-gray-500">CSV, XLS, or XLSX up to 10MB</p>
                     </label>
                 </div>
 
-                {csvFile && (
+                {file && (
                     <div className="mt-4 bg-gray-100 p-3 rounded-md flex items-center">
-                        <FontAwesomeIcon icon={faFileCsv} className="text-2xl text-green-600 mr-3" />
-                        <span className="font-medium text-gray-800">{csvFile.name}</span>
+                        <FontAwesomeIcon icon={getFileIcon()} className={`text-2xl ${getIconColor()} mr-3`} />
+                        <span className="font-medium text-gray-800">{file.name}</span>
                     </div>
                 )}
             </div>
 
-            {/* --- NEW: Data Preview Section --- */}
             {rows.length > 0 && (
                 <div className="bg-white p-6 rounded-xl shadow-md mb-8">
                     <h2 className="text-xl font-bold text-brand-dark mb-4">Data Preview (First 5 Rows)</h2>
@@ -110,7 +143,7 @@ const MigrationScoping = () => {
             {headers.length > 0 && (
                 <div className="bg-white p-6 rounded-xl shadow-md">
                     <h2 className="text-xl font-bold text-brand-dark mb-4">2. Map Data Fields</h2>
-                    <p className="text-gray-600 mb-6">Match the columns from the uploaded CSV file to the corresponding fields in VexOp+.</p>
+                    <p className="text-gray-600 mb-6">Match the columns from the uploaded file to the corresponding fields in VexOp+.</p>
                     
                     <div className="space-y-4">
                         {headers.map((header, index) => (

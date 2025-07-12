@@ -539,81 +539,70 @@ exports.createQuickBooksCustomer = functions.region(region).https.onCall(async (
 });
 
 
-/**
- * HTTP-triggered function to handle new lead submissions.
- * Saves the lead to Firestore and sends email notifications via SendGrid.
- */
 exports.onLeadCreate = functions.region(region).https.onRequest(async (req, res) => {
-    // Use CORS to allow requests from your web app
     cors({ origin: true })(req, res, async () => {
-
         if (req.method !== 'POST') {
             return res.status(405).send('Method Not Allowed');
         }
 
+        const { name, email, company, message } = req.body;
+
+        if (!name || !email || !company || !message) {
+            // Send error response immediately
+            return res.status(400).json({ success: false, message: 'Missing required fields.' });
+        }
+        
+        // =======================================================================
+        //  FIX 1: Respond to the user immediately after saving the lead.
+        //  This tells the frontend "All good!" so it doesn't show an error.
+        // =======================================================================
         try {
-            // Fetch the SendGrid API key from Secret Manager
+            const leadData = { name, email, company, message, status: 'New', createdAt: admin.firestore.FieldValue.serverTimestamp() };
+            const leadRef = await db.collection('leads').add(leadData);
+            console.log(`Lead ${leadRef.id} created. Responding to client now.`);
+            
+            // Send success response immediately!
+            res.status(200).json({ success: true, message: 'Thank you! Your message has been sent.' });
+
+        } catch (dbError) {
+            console.error('CRITICAL: Failed to save lead to Firestore.', dbError);
+            // If we can't even save to the DB, send a server error.
+            return res.status(500).json({ success: false, message: 'Failed to save lead data.' });
+        }
+
+        // =======================================================================
+        //  FIX 2: Handle email sending after the response has been sent.
+        //  The user on the website is already seeing a success message.
+        // =======================================================================
+        try {
+            console.log('Now sending emails in the background...');
             const sendGridApiKey = await getSecret('SENDGRID_API_KEY');
             sgMail.setApiKey(sendGridApiKey);
 
-            const { name, email, company, message } = req.body;
-
-            if (!name || !email || !company || !message) {
-                return res.status(400).json({ success: false, message: 'Missing required fields.' });
-            }
-
-            const leadData = {
-                name,
-                email,
-                company,
-                message,
-                status: 'New',
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            };
-
-            const leadRef = await db.collection('leads').add(leadData);
-            console.log(`Successfully created lead with ID: ${leadRef.id}`);
-
-            // --- Email Notification Logic ---
-
-            // 1. Email to the potential client
             const clientMsg = {
                 to: email,
-                from: 'your-verified-sendgrid-email@vexop.com.au', // IMPORTANT: Use an email you've verified in SendGrid
+                from: 'leads@vexop.com.au', // Make sure this is correct
                 subject: 'Thank You for Your Interest in VexOp+',
-                html: `
-                    <h1>Hi ${name},</h1>
-                    <p>Thank you for registering your interest in VexOp+. We've received your message and will be in touch shortly.</p>
-                    <p>Best regards,<br>The VexOp+ Team</p>
-                `,
+                html: `<h1>Hi ${name},</h1><p>Thank you for registering your interest...</p>`,
             };
 
-            // 2. Email to your internal team
             const adminMsg = {
-                to: 'your-internal-team-email@example.com', // Your team's email
-                from: 'noreply@vexop.com.au', // Can be a no-reply address
+                to: 'ggouge@vexop.com.au',
+                from: 'leads@vexop.com.au', // Make sure this is correct
                 subject: `New VexOp+ Lead: ${company}`,
-                html: `
-                    <h1>New Lead Submission</h1>
-                    <p><strong>Name:</strong> ${name}</p>
-                    <p><strong>Company:</strong> ${company}</p>
-                    <p><strong>Email:</strong> ${email}</p>
-                    <p><strong>Message:</strong></p>
-                    <p>${message}</p>
-                `,
+                html: `<h1>New Lead Submission</h1><p><strong>Name:</strong> ${name}</p><p><strong>Company:</strong> ${company}</p>`,
             };
 
-            // Send both emails
             await Promise.all([sgMail.send(clientMsg), sgMail.send(adminMsg)]);
+            console.log('Successfully sent emails in the background.');
 
-            return res.status(200).json({ success: true, message: 'Thank you! Your message has been sent.' });
-
-        } catch (error) {
-            console.error('Error in onLeadCreate function:', error);
-            if (error.response) {
-                console.error('SendGrid Error Body:', error.response.body);
+        } catch (emailError) {
+            // If emails fail, we just log it. The user already got a success message.
+            // You can add more robust error handling here later if needed (e.g., a retry mechanism).
+            console.error('Error sending emails in the background:', emailError);
+            if (emailError.response) {
+                console.error('SendGrid Background Error Body:', emailError.response.body);
             }
-            return res.status(500).json({ success: false, message: 'An unexpected error occurred while processing your request.' });
         }
     });
 });

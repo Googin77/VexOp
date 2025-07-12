@@ -6,11 +6,22 @@ import { getApp } from 'firebase/app';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from './firebase';
+import { Link } from 'react-router-dom'; //
 
 // --- THIS IS THE FIX ---
 // Force the Firebase Functions instance to use the correct region.
 const functions = getFunctions(getApp(), 'australia-southeast1');
 const provisionNewUser = httpsCallable(functions, 'provisionNewUser');
+
+const AdminNav = () => (
+    <nav className="bg-white p-4 rounded-lg shadow-md mb-8">
+        <ul className="flex space-x-6">
+            <li><Link to="/admin" className="font-bold text-blue-600 hover:underline">Provisioning</Link></li>
+            <li><Link to="/admin/leads" className="font-bold text-blue-600 hover:underline">Leads</Link></li>
+        </ul>
+    </nav>
+);
+
 
 const AdminDashboard = () => {
   // State for the new user form

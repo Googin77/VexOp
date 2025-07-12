@@ -24,11 +24,14 @@ import JobsModule from './modules/JobsModule';
 import QuoteCalculatorModule from './modules/QuoteCalculatorModule';
 import InvoicesModule from './modules/InvoicesModule';
 import CRMModule from './modules/CRMModule';
-// Import the new IntegrationSettings component
 import IntegrationSettings from './modules/IntegrationSettings';
+// --- NEW: Import the Leads component ---
+import Leads from './views/admin/Leads';
 
-const ProtectedLayout = () => {
+// --- UPDATED: Renamed to be more specific ---
+const ProtectedClientLayout = () => {
   const { currentUser } = useAuth();
+  // This layout is for any logged-in user, so we just check for existence.
   if (!currentUser) {
     return <Navigate to="/login" />;
   }
@@ -38,6 +41,22 @@ const ProtectedLayout = () => {
     </MainLayout>
   );
 };
+
+// --- NEW: A specific layout to protect Admin routes ---
+const ProtectedAdminLayout = () => {
+    const { currentUser } = useAuth();
+    // If no user, redirect to login
+    if (!currentUser) {
+        return <Navigate to="/login" />;
+    }
+    // If the user is not an admin, redirect them to their client dashboard
+    if (currentUser.role !== 'admin') {
+        return <Navigate to="/client" />;
+    }
+    // If they are an admin, show the admin content
+    return <Outlet />;
+};
+
 
 function AppContent() {
     const { currentUser } = useAuth();
@@ -57,18 +76,21 @@ function AppContent() {
             <Route path="/login" element={<Login />} />
 
             {/* --- Authenticated Client Routes --- */}
-            <Route element={<ProtectedLayout />}>
+            <Route element={<ProtectedClientLayout />}>
                 <Route path="/client" element={<ClientDashboardHome />} />
                 <Route path="/client/jobs" element={<JobsModule company={currentUser?.company} />} />
                 <Route path="/client/quotecalculator" element={<QuoteCalculatorModule company={currentUser?.company} />} />
                 <Route path="/client/invoices" element={<InvoicesModule company={currentUser?.company} />} />
                 <Route path="/client/crm" element={<CRMModule company={currentUser?.company} />} />
-                
-                {/* --- NEW ROUTE ADDED HERE --- */}
                 <Route path="/client/settings/integrations" element={<IntegrationSettings />} />
             </Route>
             
-            <Route path="/admin" element={<AdminDashboard />} />
+            {/* --- NEW: Grouped and Protected Admin Routes --- */}
+            <Route element={<ProtectedAdminLayout />}>
+                <Route path="/admin" element={<AdminDashboard />} />
+                <Route path="/admin/leads" element={<Leads />} />
+            </Route>
+
             {/* This wildcard route catches any path that doesn't match and redirects to the homepage */}
             <Route path="*" element={<Navigate to="/" />} />
         </Routes>

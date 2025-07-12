@@ -5,7 +5,7 @@ import { AuthContext } from './AuthContext';
 
 import JobsPreview from "./modules/JobsPreview";
 import HRDocumentsPreview from "./modules/HRDocumentsPreview";
-import InvoicesPreview from "./modules/InvoicesPreview";
+import MetricsPreview from "./modules/MetricsPreview";
 import CRMPreview from "./modules/CRMPreview";
 import WidgetCard from './components/WidgetCard';
 
@@ -62,9 +62,9 @@ export default function ClientDashboardHome() {
             </WidgetCard>
         </div>
 
-        <div onClick={() => handleNavigate('/client/invoices')} className="cursor-pointer transition-transform duration-200 hover:-translate-y-1">
-            <WidgetCard title="Recent Invoices">
-                <InvoicesPreview company={currentUser?.company} />
+        <div onClick={() => handleNavigate('/client/Metrics')} className="cursor-pointer transition-transform duration-200 hover:-translate-y-1">
+            <WidgetCard title="More Metrics">
+                <MetricsPreview company={currentUser?.company} />
             </WidgetCard>
         </div>
 

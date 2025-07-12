@@ -25,7 +25,7 @@ import AdminDashboard from './AdminDashboard';
 import ClientDashboardHome from './ClientDashboardHome';
 import JobsModule from './modules/JobsModule';
 import QuoteCalculatorModule from './modules/QuoteCalculatorModule';
-import InvoicesModule from './modules/InvoicesModule';
+import MetricsModule from './modules/MetricsModule';
 import CRMModule from './modules/CRMModule';
 import IntegrationSettings from './modules/IntegrationSettings';
 import Leads from './views/admin/Leads';
@@ -84,7 +84,7 @@ function AppContent() {
                 <Route path="/client/jobs/:id" element={<JobDetail />} />
                 <Route path="/client/quotecalculator" element={<QuoteCalculatorModule company={currentUser?.company} />} />
                 <Route path="/client/quotecalculator/:quoteId" element={<QuoteDetails />} />
-                <Route path="/client/invoices" element={<InvoicesModule company={currentUser?.company} />} />
+                <Route path="/client/Metrics" element={<MetricsModule company={currentUser?.company} />} />
                 <Route path="/client/crm" element={<CRMModule company={currentUser?.company} />} />
                 <Route path="/client/settings/integrations" element={<IntegrationSettings />} />
             </Route>

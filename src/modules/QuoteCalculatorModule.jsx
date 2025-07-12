@@ -1,4 +1,5 @@
-// src/modules/QuoteCalculatorModule.jsx (Corrected)
+// src/modules/QuoteCalculatorModule.jsx (Corrected and Updated)
+
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { 
     collection, 
@@ -41,13 +42,10 @@ export default function QuoteCalculator() {
     const [savedQuotes, setSavedQuotes] = useState([]);
     const navigate = useNavigate();
     const { currentUser } = useContext(AuthContext);
-    const [menuOpen, setMenuOpen] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
     const [quoteIdToEdit, setQuoteIdToEdit] = useState(null);
     const [quoteBeingEdited, setQuoteBeingEdited] = useState(null);
-    const menuRef = useRef(null);
 
-    // *** FIX: Added where() clause to filter prices by company ***
     useEffect(() => {
         if (!productType || !currentUser?.company) {
             setPrices({});
@@ -57,13 +55,12 @@ export default function QuoteCalculator() {
         const q = query(
             collection(db, "productprices"), 
             where("name", "==", productType),
-            where("company", "==", currentUser.company) // This line is the fix
+            where("company", "==", currentUser.company)
         );
         getDocs(q).then(snap => {
             if (!snap.empty) {
                 setPrices(snap.docs[0].data());
             } else {
-                console.warn(`No prices found for product type "${productType}" and company "${currentUser.company}"`);
                 setPrices({});
             }
         }).catch(err => console.error("Error fetching prices:", err))
@@ -143,7 +140,6 @@ export default function QuoteCalculator() {
         setQuoteIdToEdit(quote.id);
         setQuoteBeingEdited(quote);
         setIsEditing(true);
-        setMenuOpen(null);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -155,7 +151,6 @@ export default function QuoteCalculator() {
         }
     };
     
-    // --- The rest of the component's JSX is the same ---
     return (
         <div className="p-6 md:p-8 font-sans">
             <header className="mb-8">
@@ -257,7 +252,9 @@ export default function QuoteCalculator() {
                                         <td className="px-4 py-3 text-sm text-gray-600">{productTypes.find(pt => pt.value === quote.productType)?.label || "N/A"}</td>
                                         <td className="px-4 py-3 text-right text-sm font-bold text-brand-dark">${quote.total?.toFixed(2) || '0.00'}</td>
                                         <td className="px-4 py-3 text-right text-sm">
-                                            <button onClick={() => handleEditQuote(quote)} className="text-brand-dark hover:text-brand-accent mr-4">Edit</button>
+                                            {/* --- UPDATED BUTTONS --- */}
+                                            <button onClick={() => navigate(`/client/quotecalculator/${quote.id}`)} className="text-brand-dark hover:text-brand-accent mr-4">View</button>
+                                            <button onClick={() => handleEditQuote(quote)} className="text-blue-600 hover:text-blue-900 mr-4">Edit</button>
                                             <button onClick={() => handleDeleteQuote(quote.id)} className="text-red-600 hover:text-red-900">Delete</button>
                                         </td>
                                     </tr>

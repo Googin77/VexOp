@@ -1,3 +1,5 @@
+// src/App.jsx
+
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { ToastContainer } from 'react-toastify';
@@ -27,8 +29,9 @@ import InvoicesModule from './modules/InvoicesModule';
 import CRMModule from './modules/CRMModule';
 import IntegrationSettings from './modules/IntegrationSettings';
 import Leads from './views/admin/Leads';
-// --- ADD THIS IMPORT ---
 import MigrationScoping from './views/admin/MigrationScoping';
+// --- NEW IMPORT ---
+import QuoteDetails from './modules/QuoteDetails';
 
 
 const ProtectedClientLayout = () => {
@@ -77,6 +80,8 @@ function AppContent() {
                 <Route path="/client" element={<ClientDashboardHome />} />
                 <Route path="/client/jobs" element={<JobsModule company={currentUser?.company} />} />
                 <Route path="/client/quotecalculator" element={<QuoteCalculatorModule company={currentUser?.company} />} />
+                {/* --- NEW ROUTE FOR QUOTE DETAILS --- */}
+                <Route path="/client/quotecalculator/:quoteId" element={<QuoteDetails />} />
                 <Route path="/client/invoices" element={<InvoicesModule company={currentUser?.company} />} />
                 <Route path="/client/crm" element={<CRMModule company={currentUser?.company} />} />
                 <Route path="/client/settings/integrations" element={<IntegrationSettings />} />
@@ -86,7 +91,6 @@ function AppContent() {
             <Route element={<ProtectedAdminLayout />}>
                 <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/admin/leads" element={<Leads />} />
-                {/* --- ADD THIS NEW ROUTE --- */}
                 <Route path="/admin/migration" element={<MigrationScoping />} />
             </Route>
 

@@ -51,10 +51,6 @@ export default function MainLayout({ children }) {
             <FontAwesomeIcon icon={faCalculator} className="w-5 h-5 mr-3" />
             <span>Quote Calculator</span>
           </NavLink>
-          <NavLink to="/client/invoices" className={navLinkClasses}>
-             <FontAwesomeIcon icon={faFileInvoiceDollar} className="w-5 h-5 mr-3" />
-             <span>Invoices</span>
-          </NavLink>
           <NavLink to="/client/crm" className={navLinkClasses}>
              <FontAwesomeIcon icon={faUsers} className="w-5 h-5 mr-3" />
              <span>CRM</span>

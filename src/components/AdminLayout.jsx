@@ -8,6 +8,8 @@ const AdminNav = () => (
         <ul className="flex space-x-6">
             <li><Link to="/admin" className="font-bold text-blue-600 hover:underline">Provisioning</Link></li>
             <li><Link to="/admin/leads" className="font-bold text-blue-600 hover:underline">Leads</Link></li>
+            {/* --- ADD THIS NEW NAVIGATION LINK --- */}
+            <li><Link to="/admin/migration" className="font-bold text-blue-600 hover:underline">Migration Tool</Link></li>
         </ul>
     </nav>
 );

@@ -6,7 +6,7 @@ import 'react-toastify/dist/ReactToastify.css';
 // Layouts and Components
 import PublicLayout from './components/PublicLayout';
 import MainLayout from './components/MainLayout';
-import AdminLayout from './components/AdminLayout'; // --- IMPORT THE NEW LAYOUT ---
+import AdminLayout from './components/AdminLayout';
 
 // Standalone Pages
 import Login from './Login';
@@ -27,6 +27,9 @@ import InvoicesModule from './modules/InvoicesModule';
 import CRMModule from './modules/CRMModule';
 import IntegrationSettings from './modules/IntegrationSettings';
 import Leads from './views/admin/Leads';
+// --- ADD THIS IMPORT ---
+import MigrationScoping from './views/admin/MigrationScoping';
+
 
 const ProtectedClientLayout = () => {
   const { currentUser } = useAuth();
@@ -48,7 +51,6 @@ const ProtectedAdminLayout = () => {
     if (currentUser.role !== 'admin') {
         return <Navigate to="/client" />;
     }
-    // --- UPDATE: Use the AdminLayout to wrap all admin pages ---
     return <AdminLayout />;
 };
 
@@ -80,10 +82,12 @@ function AppContent() {
                 <Route path="/client/settings/integrations" element={<IntegrationSettings />} />
             </Route>
             
-            {/* --- UPDATED: Admin routes now render inside the AdminLayout's <Outlet> --- */}
+            {/* --- Admin Routes --- */}
             <Route element={<ProtectedAdminLayout />}>
                 <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/admin/leads" element={<Leads />} />
+                {/* --- ADD THIS NEW ROUTE --- */}
+                <Route path="/admin/migration" element={<MigrationScoping />} />
             </Route>
 
             {/* This wildcard route catches any path that doesn't match and redirects to the homepage */}

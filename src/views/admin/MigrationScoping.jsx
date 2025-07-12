@@ -1,10 +1,20 @@
-// src/views/admin/MigrationScoping.jsx
+// src/views/admin/MigrationScoping.jsx (Corrected)
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUpload, faFileCsv, faFileExcel } from '@fortawesome/free-solid-svg-icons';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
+import { collection, getDocs } from 'firebase/firestore';
+
+// --- CORRECTED IMPORTS ---
+import { db } from '../../firebase';
+import { getApp } from "firebase/app";
+import { getFunctions, httpsCallable } from "firebase/functions";
+// --- END OF CORRECTIONS ---
+
+// Initialize Firebase Functions
+const functions = getFunctions(getApp(), 'australia-southeast1');
 
 const MigrationScoping = () => {
     const [file, setFile] = useState(null);
@@ -12,7 +22,24 @@ const MigrationScoping = () => {
     const [rows, setRows] = useState([]);
     const [isProcessing, setIsProcessing] = useState(false);
     const [mapping, setMapping] = useState({});
-  const [companyId, setCompanyId] = useState(''); // State to hold the company ID
+    
+    // State for the company dropdown
+    const [companies, setCompanies] = useState([]);
+    const [companyId, setCompanyId] = useState(''); // State to hold the selected company ID
+
+    // Fetch existing companies when the component mounts
+    useEffect(() => {
+        const fetchCompanies = async () => {
+            const companiesCol = collection(db, 'companies');
+            const companySnapshot = await getDocs(companiesCol);
+            const companyList = companySnapshot.docs.map(doc => ({ 
+                id: doc.id, 
+                name: doc.data().companyName 
+            }));
+            setCompanies(companyList);
+        };
+        fetchCompanies();
+    }, []);
 
     const handleFileChange = (event) => {
         const selectedFile = event.target.files[0];
@@ -29,7 +56,7 @@ const MigrationScoping = () => {
                     complete: function(results) {
                         if (results.data.length > 0) {
                             setHeaders(Object.keys(results.data[0]));
-                            setRows(results.data); // Keep all data for import
+                            setRows(results.data);
                         }
                     }
                 });
@@ -45,7 +72,7 @@ const MigrationScoping = () => {
 
                 if (json.length > 0) {
                     setHeaders(Object.keys(json[0]));
-                    setRows(json); // Keep all data for import
+                    setRows(json);
                 }
             };
             reader.readAsArrayBuffer(selectedFile);
@@ -70,21 +97,21 @@ const MigrationScoping = () => {
             return;
         }
         if (!companyId) {
-    alert("Please enter the client's Company ID.");
-    return;
-}
+            alert("Please select a client company from the dropdown.");
+            return;
+        }
         setIsProcessing(true);
         
         try {
             const processDataImport = httpsCallable(functions, 'processDataImport');
-           const result = await processDataImport({
-    data: rows,
-    mapping: mapping,
-    companyId: companyId // Corrected to use companyId
+            const result = await processDataImport({
+                data: rows,
+                mapping: mapping,
+                companyId: companyId
             });
 
             if (result.data.status === 'success') {
-                alert('Import successful!');
+                alert('Import successful! ' + result.data.message);
             } else {
                 throw new Error(result.data.message || 'Import failed.');
             }
@@ -193,18 +220,22 @@ const MigrationScoping = () => {
                     <div className="mt-8 border-t pt-6">
                         <div className="mb-4">
                             <label className="block text-gray-700 font-bold mb-2" htmlFor="companyId">
-                              Client's Company Id ID
+                              Select Client Company to Import For
                             </label>
-                            <input
+                            <select
                               id="companyId"
-                              type="text"
                               value={companyId}
                               onChange={(e) => setCompanyId(e.target.value)}
-                              placeholder="e.g., acme-construction"
                               className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                               required
-                            />
+                            >
+                                <option value="">-- Select a Company --</option>
+                                {companies.map(comp => (
+                                    <option key={comp.id} value={comp.id}>{comp.name}</option>
+                                ))}
+                            </select>
                         </div>
+                        
                         <button 
                             onClick={handleImport}
                             disabled={isProcessing}

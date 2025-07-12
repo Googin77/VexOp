@@ -11,9 +11,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyC925LR45LRaxWwTZ8_grG0LQTszxJvWHo",
   authDomain: "buildops-dashboard.firebaseapp.com",
   projectId: "buildops-dashboard",
-  // --- THIS IS THE FIX ---
-  // The storageBucket should end in .appspot.com
-  storageBucket: "buildops-dashboard.appspot.com",
+ storageBucket: "buildops-dashboard.firebasestorage.app",
   messagingSenderId: "255481704627",
   appId: "1:255481704627:web:b528e951946daef72f00c6"
 };

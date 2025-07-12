@@ -773,17 +773,17 @@ exports.generatePdf = functions
     }
 });
 
-// --- NEW: Function to backfill custom claims for existing users ---
+// --- FINAL, SECURE VERSION of the setCustomClaims function ---
 exports.setCustomClaims = functions
   .region(region)
   .https.onCall(async (data, context) => {
-    // --- TEMPORARILY COMMENTED OUT FOR FIRST RUN ---
-    // if (context.auth.token.role !== 'admin') {
-    //   throw new functions.https.HttpsError(
-    //     'permission-denied',
-    //     'This function can only be called by an admin.'
-    //   );
-    // }
+    // --- SECURITY CHECK IS NOW RE-ENABLED ---
+    if (context.auth.token.role !== 'admin') {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'This function can only be called by an admin.'
+      );
+    }
 
     const { userId } = data;
     if (!userId) {

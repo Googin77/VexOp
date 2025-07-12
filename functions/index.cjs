@@ -156,7 +156,6 @@ async function getAuthenticatedXeroClient(companyId) {
     return { xero, tenantId: activeTenantId };
 }
 
-// --- UPDATED: This function now sets custom claims on user creation ---
 exports.provisionNewUser = functions
  .region(region)
  .https.onCall(async (data, context) => {
@@ -168,7 +167,6 @@ exports.provisionNewUser = functions
       const userRecord = await admin.auth().createUser({ email, password });
       const uid = userRecord.uid;
 
-      // --- NEW: Set custom claims for the new user ---
       await admin.auth().setCustomUserClaims(uid, {
           company: companyId,
           role: 'client'
@@ -779,13 +777,13 @@ exports.generatePdf = functions
 exports.setCustomClaims = functions
   .region(region)
   .https.onCall(async (data, context) => {
-    // Only allow admins to run this function
-    if (context.auth.token.role !== 'admin') {
-      throw new functions.https.HttpsError(
-        'permission-denied',
-        'This function can only be called by an admin.'
-      );
-    }
+    // --- TEMPORARILY COMMENTED OUT FOR FIRST RUN ---
+    // if (context.auth.token.role !== 'admin') {
+    //   throw new functions.https.HttpsError(
+    //     'permission-denied',
+    //     'This function can only be called by an admin.'
+    //   );
+    // }
 
     const { userId } = data;
     if (!userId) {

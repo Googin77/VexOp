@@ -606,3 +606,86 @@ exports.onLeadCreate = functions.region(region).https.onRequest(async (req, res)
         }
     });
 });
+
+
+// ===================================================================
+// 7. DATA MIGRATION-SPECIFIC LOGIC
+// ===================================================================
+exports.processDataImport = functions
+  .region(region)
+  .https.onCall(async (data, context) => {
+    // 1. Authentication and Authorization Check
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "The function must be called while authenticated."
+      );
+    }
+
+    const adminUserDoc = await db.collection('users1').doc(context.auth.uid).get();
+
+    if (!adminUserDoc.exists || adminUserDoc.data().role !== 'admin') {
+        throw new functions.https.HttpsError(
+            "permission-denied",
+            "This function can only be called by an admin user."
+        );
+    }
+
+    // 2. Data Validation
+    const { data: importData, mapping, companyId } = data;
+
+    if (!Array.isArray(importData) || !mapping || !companyId) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing required parameters: data (must be an array), mapping, or companyId."
+      );
+    }
+
+    // 3. Data Processing and Firestore Batch Write
+    const batch = db.batch();
+    const crmCollectionRef = db.collection("companies").doc(companyId).collection("crm");
+
+
+    importData.forEach((row) => {
+      const newDoc = {
+        company: companyId, // Ensure every document is tagged with the company ID
+        createdAt: admin.firestore.FieldValue.serverTimestamp(), // Add a creation timestamp
+      };
+
+      // Map fields from the uploaded file to Firestore fields
+      for (const fileHeader in mapping) {
+        if (row[fileHeader] !== undefined && mapping[fileHeader]) {
+          const vexOpField = mapping[fileHeader];
+          
+          // Handle nested fields like "address.billing"
+          if (vexOpField.includes('.')) {
+              const [parent, child] = vexOpField.split('.');
+              if (!newDoc[parent]) {
+                  newDoc[parent] = {};
+              }
+              newDoc[parent][child] = row[fileHeader];
+          } else {
+              newDoc[vexOpField] = row[fileHeader];
+          }
+        }
+      }
+      
+      const newDocRef = crmCollectionRef.doc(); // Auto-generate a new document ID
+      batch.set(newDocRef, newDoc);
+    });
+
+    // 4. Commit the Batch
+    try {
+      await batch.commit();
+      return {
+        status: "success",
+        message: `Successfully imported ${importData.length} documents into the CRM for ${companyId}.`,
+      };
+    } catch (error) {
+      console.error("Error committing batch:", error);
+      throw new functions.https.HttpsError(
+        "internal",
+        "An unexpected error occurred while saving the data to the database."
+      );
+    }
+  });

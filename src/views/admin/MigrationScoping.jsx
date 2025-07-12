@@ -4,15 +4,16 @@ import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUpload, faFileCsv, faFileExcel } from '@fortawesome/free-solid-svg-icons';
 import Papa from 'papaparse';
-import * as XLSX from 'xlsx'; // --- IMPORT XLSX LIBRARY ---
+import * as XLSX from 'xlsx';
 
 const MigrationScoping = () => {
     const [file, setFile] = useState(null);
     const [headers, setHeaders] = useState([]);
     const [rows, setRows] = useState([]);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [mapping, setMapping] = useState({});
+  const [companyId, setCompanyId] = useState(''); // State to hold the organization ID
 
-    // --- UPDATED: This function now handles CSV, XLS, and XLSX files ---
     const handleFileChange = (event) => {
         const selectedFile = event.target.files[0];
         if (!selectedFile) return;
@@ -20,9 +21,7 @@ const MigrationScoping = () => {
         setFile(selectedFile);
         const reader = new FileReader();
 
-        // Check file type and use the appropriate parser
         if (selectedFile.name.endsWith('.csv')) {
-            // Use Papaparse for CSV files
             reader.onload = (e) => {
                 Papa.parse(e.target.result, {
                     header: true,
@@ -30,14 +29,13 @@ const MigrationScoping = () => {
                     complete: function(results) {
                         if (results.data.length > 0) {
                             setHeaders(Object.keys(results.data[0]));
-                            setRows(results.data.slice(0, 5));
+                            setRows(results.data); // Keep all data for import
                         }
                     }
                 });
             };
             reader.readAsText(selectedFile);
         } else if (selectedFile.name.endsWith('.xls') || selectedFile.name.endsWith('.xlsx')) {
-            // Use xlsx (SheetJS) for Excel files
             reader.onload = (e) => {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
@@ -47,7 +45,7 @@ const MigrationScoping = () => {
 
                 if (json.length > 0) {
                     setHeaders(Object.keys(json[0]));
-                    setRows(json.slice(0, 5));
+                    setRows(json); // Keep all data for import
                 }
             };
             reader.readAsArrayBuffer(selectedFile);
@@ -59,17 +57,43 @@ const MigrationScoping = () => {
         }
     };
 
-    const handleImport = () => {
+    const handleMappingChange = (header, vexOpField) => {
+        setMapping(prevMapping => ({
+            ...prevMapping,
+            [header]: vexOpField
+        }));
+    };
+
+    const handleImport = async () => {
         if (!file) {
             alert("Please upload a file first.");
             return;
         }
+        if (!companyId) {
+    alert("Please enter the client's Company ID.");
+    return;
+}
         setIsProcessing(true);
-        console.log("Starting import process...");
-        setTimeout(() => {
-            console.log("Import complete (simulated).");
+        
+        try {
+            const processDataImport = httpsCallable(functions, 'processDataImport');
+           const result = await processDataImport({
+    data: rows,
+    mapping: mapping,
+    companyId: companyId // Corrected to use companyId
+            });
+
+            if (result.data.status === 'success') {
+                alert('Import successful!');
+            } else {
+                throw new Error(result.data.message || 'Import failed.');
+            }
+        } catch (error) {
+            console.error("Error importing data:", error);
+            alert(`An error occurred during import: ${error.message}`);
+        } finally {
             setIsProcessing(false);
-        }, 2000);
+        }
     };
 
     const getFileIcon = () => {
@@ -95,7 +119,6 @@ const MigrationScoping = () => {
                         type="file"
                         id="file-upload"
                         className="hidden"
-                        // --- UPDATED: Accept CSV and Excel formats ---
                         accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
                         onChange={handleFileChange}
                     />
@@ -127,7 +150,7 @@ const MigrationScoping = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
-                                {rows.map((row, index) => (
+                                {rows.slice(0, 5).map((row, index) => (
                                     <tr key={index}>
                                         {headers.map(header => (
                                             <td key={header} className="px-3 py-2 whitespace-nowrap text-gray-700">{row[header]}</td>
@@ -151,7 +174,10 @@ const MigrationScoping = () => {
                                 <div className="p-2 bg-gray-100 rounded-md text-gray-800 font-mono text-sm">
                                     {header}
                                 </div>
-                                <select className="w-full p-2 border border-gray-300 rounded-md bg-white">
+                                <select 
+                                    className="w-full p-2 border border-gray-300 rounded-md bg-white"
+                                    onChange={(e) => handleMappingChange(header, e.target.value)}
+                                >
                                     <option value="">Select VexOp+ Field...</option>
                                     <option value="name">Customer Name</option>
                                     <option value="email">Contact Email</option>
@@ -165,6 +191,20 @@ const MigrationScoping = () => {
                     </div>
 
                     <div className="mt-8 border-t pt-6">
+                        <div className="mb-4">
+                            <label className="block text-gray-700 font-bold mb-2" htmlFor="companyId">
+                              Client's Company Id ID
+                            </label>
+                            <input
+                              id="companyId"
+                              type="text"
+                              value={companyId}
+                              onChange={(e) => setCompanyId(e.target.value)}
+                              placeholder="e.g., acme-construction"
+                              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                              required
+                            />
+                        </div>
                         <button 
                             onClick={handleImport}
                             disabled={isProcessing}

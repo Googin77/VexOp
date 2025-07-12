@@ -30,8 +30,9 @@ import CRMModule from './modules/CRMModule';
 import IntegrationSettings from './modules/IntegrationSettings';
 import Leads from './views/admin/Leads';
 import MigrationScoping from './views/admin/MigrationScoping';
-// --- NEW IMPORT ---
 import QuoteDetails from './modules/QuoteDetails';
+// --- NEW: Import JobDetail ---
+import JobDetail from './modules/JobDetail';
 
 
 const ProtectedClientLayout = () => {
@@ -79,8 +80,9 @@ function AppContent() {
             <Route element={<ProtectedClientLayout />}>
                 <Route path="/client" element={<ClientDashboardHome />} />
                 <Route path="/client/jobs" element={<JobsModule company={currentUser?.company} />} />
+                {/* --- NEW: Route for a single job's details --- */}
+                <Route path="/client/jobs/:id" element={<JobDetail />} />
                 <Route path="/client/quotecalculator" element={<QuoteCalculatorModule company={currentUser?.company} />} />
-                {/* --- NEW ROUTE FOR QUOTE DETAILS --- */}
                 <Route path="/client/quotecalculator/:quoteId" element={<QuoteDetails />} />
                 <Route path="/client/invoices" element={<InvoicesModule company={currentUser?.company} />} />
                 <Route path="/client/crm" element={<CRMModule company={currentUser?.company} />} />

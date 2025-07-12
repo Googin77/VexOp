@@ -6,6 +6,7 @@ import 'react-toastify/dist/ReactToastify.css';
 // Layouts and Components
 import PublicLayout from './components/PublicLayout';
 import MainLayout from './components/MainLayout';
+import AdminLayout from './components/AdminLayout'; // --- IMPORT THE NEW LAYOUT ---
 
 // Standalone Pages
 import Login from './Login';
@@ -25,13 +26,10 @@ import QuoteCalculatorModule from './modules/QuoteCalculatorModule';
 import InvoicesModule from './modules/InvoicesModule';
 import CRMModule from './modules/CRMModule';
 import IntegrationSettings from './modules/IntegrationSettings';
-// --- NEW: Import the Leads component ---
 import Leads from './views/admin/Leads';
 
-// --- UPDATED: Renamed to be more specific ---
 const ProtectedClientLayout = () => {
   const { currentUser } = useAuth();
-  // This layout is for any logged-in user, so we just check for existence.
   if (!currentUser) {
     return <Navigate to="/login" />;
   }
@@ -42,19 +40,16 @@ const ProtectedClientLayout = () => {
   );
 };
 
-// --- NEW: A specific layout to protect Admin routes ---
 const ProtectedAdminLayout = () => {
     const { currentUser } = useAuth();
-    // If no user, redirect to login
     if (!currentUser) {
         return <Navigate to="/login" />;
     }
-    // If the user is not an admin, redirect them to their client dashboard
     if (currentUser.role !== 'admin') {
         return <Navigate to="/client" />;
     }
-    // If they are an admin, show the admin content
-    return <Outlet />;
+    // --- UPDATE: Use the AdminLayout to wrap all admin pages ---
+    return <AdminLayout />;
 };
 
 
@@ -85,7 +80,7 @@ function AppContent() {
                 <Route path="/client/settings/integrations" element={<IntegrationSettings />} />
             </Route>
             
-            {/* --- NEW: Grouped and Protected Admin Routes --- */}
+            {/* --- UPDATED: Admin routes now render inside the AdminLayout's <Outlet> --- */}
             <Route element={<ProtectedAdminLayout />}>
                 <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/admin/leads" element={<Leads />} />

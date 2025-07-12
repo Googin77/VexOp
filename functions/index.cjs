@@ -689,3 +689,104 @@ exports.processDataImport = functions
       );
     }
   });
+
+
+  // ===================================================================
+// 8. PDF GENERATION LOGIC
+// ===================================================================
+const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+
+exports.generatePdf = functions
+  .region(region)
+  .https.onCall(async (data, context) => {
+    // 1. Authentication & Authorization
+    if (!context.auth) {
+      throw new functions.https.HttpsError(
+        "unauthenticated",
+        "The function must be called while authenticated."
+      );
+    }
+    
+    // 2. Data Validation
+    const { companyId, docId, type } = data;
+    if (!companyId || !docId || !type) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing required parameters: companyId, docId, or type."
+      );
+    }
+
+    // 3. Fetch Data from Firestore
+    let docData;
+    try {
+      // We'll use a placeholder collection 'quotes' for now.
+      // This can be adapted for 'invoices' later.
+      const docRef = db.collection('companies').doc(companyId).collection(type).doc(docId);
+      const docSnap = await docRef.get();
+      if (!docSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'The requested document could not be found.');
+      }
+      docData = docSnap.data();
+    } catch (error) {
+        console.error("Error fetching document from Firestore:", error);
+        if (error instanceof functions.https.HttpsError) throw error;
+        throw new functions.https.HttpsError('internal', 'Failed to retrieve document data.');
+    }
+
+    // 4. Create PDF Document
+    try {
+        const pdfDoc = await PDFDocument.create();
+        const page = pdfDoc.addPage();
+        const { width, height } = page.getSize();
+        const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+        const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+        
+        // --- Basic PDF Structure ---
+        // Header
+        page.drawText('QUOTE', {
+            x: 50,
+            y: height - 50,
+            font: boldFont,
+            size: 24,
+            color: rgb(0.1, 0.1, 0.1),
+        });
+
+        // Add placeholder for company logo and details here later
+
+        // Document Details
+        page.drawText(`Quote Number: ${docData.quoteNumber || docId}`, { x: 50, y: height - 100, font, size: 12 });
+        page.drawText(`Date: ${docData.date || new Date().toLocaleDateString()}`, { x: 50, y: height - 120, font, size: 12 });
+
+        // Client Details
+        page.drawText('To:', { x: 50, y: height - 160, font: boldFont, size: 12 });
+        page.drawText(docData.clientName || 'N/A', { x: 50, y: height - 180, font, size: 12 });
+        // Add more client details (address, etc.) as needed
+
+        // Line Items Table (simplified)
+        let yPosition = height - 240;
+        page.drawText('Description', { x: 50, y: yPosition, font: boldFont, size: 12 });
+        page.drawText('Amount', { x: width - 100, y: yPosition, font: boldFont, size: 12 });
+        
+        yPosition -= 20; // Move down for first item
+
+        // This is a placeholder. You would loop through an array of line items.
+        page.drawText(docData.description || 'Work description placeholder', { x: 50, y: yPosition, font, size: 12 });
+        page.drawText(`$${docData.totalAmount || '0.00'}`, { x: width - 100, y: yPosition, font, size: 12 });
+
+        // Total
+        yPosition -= 40;
+        page.drawText('Total:', { x: width - 150, y: yPosition, font: boldFont, size: 14 });
+        page.drawText(`$${docData.totalAmount || '0.00'}`, { x: width - 100, y: yPosition, font: boldFont, size: 14 });
+
+        // 5. Save and Return PDF
+        const pdfBytes = await pdfDoc.saveAsBase64();
+        return { 
+            status: 'success',
+            pdfBase64: pdfBytes 
+        };
+
+    } catch (error) {
+        console.error("Failed to generate PDF:", error);
+        throw new functions.https.HttpsError('internal', 'An unexpected error occurred while creating the PDF.');
+    }
+});

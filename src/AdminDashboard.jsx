@@ -9,6 +9,66 @@ import { db } from './firebase';
 const functions = getFunctions(getApp(), 'australia-southeast1');
 const provisionNewUser = httpsCallable(functions, 'provisionNewUser');
 
+// =====================================================================
+// --- TEMPORARY COMPONENT TO BACKFILL CUSTOM CLAIMS ---
+// You can remove this entire component after you've updated your existing users.
+// =====================================================================
+const BackfillClaims = () => {
+    const [userId, setUserId] = useState('');
+    const [message, setMessage] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleBackfill = async () => {
+        if (!userId) {
+            alert('Please enter the User ID (UID) of the user to update.');
+            return;
+        }
+        setIsLoading(true);
+        setMessage('Processing...');
+        try {
+            const setCustomClaims = httpsCallable(functions, 'setCustomClaims');
+            const result = await setCustomClaims({ userId });
+            setMessage(result.data.message);
+        } catch (error) {
+            console.error("Error setting custom claims:", error);
+            setMessage(`Error: ${error.message}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="bg-yellow-100 p-6 rounded-lg mt-8 border border-yellow-400">
+            <h3 className="text-lg font-bold text-yellow-800">Admin Tool: Backfill Custom Claims</h3>
+            <p className="text-sm text-yellow-700 mt-1">
+                Use this to update an existing user with the `company` and `role` claims required for the new security rules.
+                You only need to run this once per existing user.
+            </p>
+            <div className="flex items-center gap-2 mt-4">
+                <input
+                    type="text"
+                    value={userId}
+                    onChange={(e) => setUserId(e.target.value)}
+                    placeholder="Enter User ID (UID) to update"
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700"
+                />
+                <button 
+                    onClick={handleBackfill} 
+                    disabled={isLoading}
+                    className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded transition-colors disabled:bg-gray-400"
+                >
+                    {isLoading ? '...' : 'Set Claims'}
+                </button>
+            </div>
+            {message && <p className="text-sm mt-2 font-medium text-gray-800">{message}</p>}
+        </div>
+    );
+};
+// =====================================================================
+// --- END OF TEMPORARY COMPONENT ---
+// =====================================================================
+
+
 const AdminDashboard = () => {
   // State for the new user form
   const [email, setEmail] = useState('');
@@ -59,7 +119,6 @@ const AdminDashboard = () => {
   };
 
   return (
-    // The outer div, header, and AdminNav have been moved to AdminLayout.jsx
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
       {/* --- User Provisioning Form --- */}
       <div className="bg-white p-6 rounded-lg shadow-md">
@@ -152,6 +211,12 @@ const AdminDashboard = () => {
           </ul>
         </div>
       </div>
+
+      {/* --- TEMPORARY TOOL PLACED HERE --- */}
+      <div className="md:col-span-2">
+        <BackfillClaims />
+      </div>
+
     </div>
   );
 };

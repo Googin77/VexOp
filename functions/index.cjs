@@ -156,6 +156,7 @@ async function getAuthenticatedXeroClient(companyId) {
     return { xero, tenantId: activeTenantId };
 }
 
+// --- UPDATED: This function now sets custom claims on user creation ---
 exports.provisionNewUser = functions
  .region(region)
  .https.onCall(async (data, context) => {
@@ -166,6 +167,13 @@ exports.provisionNewUser = functions
     try {
       const userRecord = await admin.auth().createUser({ email, password });
       const uid = userRecord.uid;
+
+      // --- NEW: Set custom claims for the new user ---
+      await admin.auth().setCustomUserClaims(uid, {
+          company: companyId,
+          role: 'client'
+      });
+
       const batch = db.batch();
       const userRef = db.collection('users1').doc(uid);
       batch.set(userRef, { email, company: companyId, role: 'client' });
@@ -637,8 +645,6 @@ exports.processDataImport = functions
 
     // 3. Data Processing and Firestore Batch Write
     const batch = db.batch();
-    // --- THIS IS THE FIX ---
-    // The path now correctly points to the top-level collection (`crm`)
     const crmCollectionRef = db.collection("crm");
 
 
@@ -653,7 +659,6 @@ exports.processDataImport = functions
         if (row[fileHeader] !== undefined && mapping[fileHeader]) {
           const vexOpField = mapping[fileHeader];
           
-          // Handle nested fields like "address.billing"
           if (vexOpField.includes('.')) {
               const [parent, child] = vexOpField.split('.');
               if (!newDoc[parent]) {
@@ -713,12 +718,9 @@ exports.generatePdf = functions
     // 3. Fetch Data from Firestore
     let docData;
     try {
-      // --- THIS IS THE FIX ---
-      // The path now correctly points to the top-level collection (`quotes` or `invoices`)
       const docRef = db.collection(type).doc(docId);
       const docSnap = await docRef.get();
 
-      // Also check that the fetched document belongs to the correct company for security
       if (!docSnap.exists || docSnap.data().company !== companyId) {
         throw new functions.https.HttpsError('not-found', 'The requested document could not be found or you do not have permission to access it.');
       }
@@ -737,7 +739,6 @@ exports.generatePdf = functions
         const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
         const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
         
-        // --- Basic PDF Structure ---
         page.drawText('QUOTE', {
             x: 50,
             y: height - 50,
@@ -755,7 +756,6 @@ exports.generatePdf = functions
         
         yPosition -= 20;
 
-        // This is a placeholder for a full line-item breakdown
         page.drawText('Total Services Rendered', { x: 50, y: yPosition, font, size: 12 });
         page.drawText(`$${docData.total?.toFixed(2) || '0.00'}`, { x: width - 100, y: yPosition, font, size: 12 });
 
@@ -763,7 +763,6 @@ exports.generatePdf = functions
         page.drawText('Total:', { x: width - 150, y: yPosition, font: boldFont, size: 14 });
         page.drawText(`$${docData.total?.toFixed(2) || '0.00'}`, { x: width - 100, y: yPosition, font: boldFont, size: 14 });
 
-        // 5. Save and Return PDF
         const pdfBytes = await pdfDoc.saveAsBase64();
         return { 
             status: 'success',
@@ -775,3 +774,43 @@ exports.generatePdf = functions
         throw new functions.https.HttpsError('internal', 'An unexpected error occurred while creating the PDF.');
     }
 });
+
+// --- NEW: Function to backfill custom claims for existing users ---
+exports.setCustomClaims = functions
+  .region(region)
+  .https.onCall(async (data, context) => {
+    // Only allow admins to run this function
+    if (context.auth.token.role !== 'admin') {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'This function can only be called by an admin.'
+      );
+    }
+
+    const { userId } = data;
+    if (!userId) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'The function must be called with a "userId".'
+      );
+    }
+
+    try {
+      const userDocRef = db.collection('users1').doc(userId);
+      const userDoc = await userDocRef.get();
+      if (!userDoc.exists) {
+        throw new functions.https.HttpsError('not-found', 'User not found in Firestore.');
+      }
+
+      const { company, role } = userDoc.data();
+      await admin.auth().setCustomUserClaims(userId, { company, role });
+
+      return {
+        status: 'success',
+        message: `Custom claims set for user ${userId}: company=${company}, role=${role}`,
+      };
+    } catch (error) {
+      console.error('Error setting custom claims:', error);
+      throw new functions.https.HttpsError('internal', 'An unexpected error occurred.');
+    }
+  });
